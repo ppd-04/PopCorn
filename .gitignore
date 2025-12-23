@@ -1,0 +1,15 @@
+# Frontend
+imdb-frontend/node_modules/
+imdb-frontend/build/
+
+# Backend (future)
+imdb-backend/node_modules/
+imdb-backend/dist/
+
+# Env files
+.env
+**/.env
+
+# OS files
+.DS_Store
+Thumbs.db
