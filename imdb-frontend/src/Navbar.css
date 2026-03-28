@@ -1,3 +1,6 @@
+/* =========================================
+   YOUR ORIGINAL NAVBAR STYLES
+   ========================================= */
 .navbar {
   display: flex;
   align-items: center;
@@ -76,3 +79,202 @@
   color: #f5c518;
   transform: translateY(-1px);
 }
+
+/* =========================================
+   SIDEBAR & HAMBURGER STYLES
+   ========================================= */
+
+.navbar__hamburger {
+  font-size: 28px;
+  cursor: pointer;
+  margin-right: 15px;
+  color: #f5c518;
+  transition: transform 0.2s ease;
+  user-select: none;
+}
+
+.navbar__hamburger:hover {
+  transform: scale(1.1);
+}
+
+/* Sidebar Container */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: -300px; /* Hidden off-screen by default */
+  width: 250px;
+  height: 100vh;
+  background-color: #121212;
+  border-right: 1px solid rgba(245, 197, 24, 0.2);
+  z-index: 1001; /* Must be higher than the navbar */
+  transition: left 0.3s ease-in-out;
+  box-shadow: 2px 0 15px rgba(0,0,0,0.8);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  color: white;
+}
+
+/* Light mode support */
+.sidebar.light {
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+/* When the state is true, slide it in */
+.sidebar.open {
+  left: 0; 
+}
+
+.sidebar__close {
+  align-self: flex-end;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 2.5rem;
+  cursor: pointer;
+  margin-bottom: 20px;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
+.sidebar__close:hover {
+  color: #f5c518;
+}
+
+.sidebar__content h3 {
+  color: #f5c518; 
+  margin-bottom: 25px;
+  font-size: 1.2rem;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  border-bottom: 1px solid rgba(245, 197, 24, 0.3);
+  padding-bottom: 10px;
+}
+
+.sidebar__content a {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+
+.sidebar__content a:hover {
+  color: #f5c518;
+  transform: translateX(5px); /* Cute little slide effect on hover */
+}
+
+/* The dark background overlay */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(3px);
+  z-index: 1000; /* Just below the sidebar, but above everything else */
+}
+
+/* =========================================
+   NEW PROFILE DROPDOWN STYLES
+   ========================================= */
+
+.profile-menu-container {
+  position: relative;
+  display: inline-block;
+  margin-left: 15px; 
+}
+
+.profile-avatar {
+  width: 38px;
+  height: 38px;
+  background-color: #f5c518; 
+  color: #121212; /* Dark text on yellow background */
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 1.2rem;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.profile-avatar:hover {
+  border: 2px solid #ffffff; 
+  transform: scale(1.05);
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 60px; /* Dropped down slightly to clear the navbar cleanly */
+  right: 0;
+  background-color: #1a1a1a;
+  border: 1px solid rgba(245, 197, 24, 0.2); /* Matches navbar border */
+  border-radius: 12px;
+  width: 180px;
+  box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.7);
+  z-index: 1005; /* Keeps it above everything */
+  overflow: hidden; /* Ensures rounded corners look neat on hover */
+}
+
+/* Light Theme Support for Dropdown */
+.light .dropdown-menu {
+  background-color: #ffffff;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.dropdown-menu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.dropdown-menu li {
+  padding: 12px 20px;
+  color: #ffffff;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 500;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.light .dropdown-menu li {
+  color: #333333;
+}
+
+.dropdown-menu li:hover {
+  background-color: rgba(245, 197, 24, 0.15); /* Subtle IMDb yellow tint */
+  color: #f5c518;
+}
+
+.light .dropdown-menu li:hover {
+  background-color: #f5f5f5;
+  color: #000;
+}
+
+.divider {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.1);
+  margin: 4px 0;
+}
+
+.light .divider {
+  background-color: #eeeeee;
+}
+
+.logout-text {
+  color: #ff4d4d !important;
+}
+
+.logout-text:hover {
+  background-color: rgba(255, 77, 77, 0.1) !important;
+}
+
+
