@@ -6,6 +6,8 @@ imdb-frontend/build/
 imdb-backend/node_modules/
 imdb-backend/dist/
 
+node_modules/
+
 # Env files
 .env
 **/.env
