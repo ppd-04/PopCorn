@@ -138,20 +138,30 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
             text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
         } catch (_) { /* kichu na*/ }
 
-        let suggestedMovies = [];
-        const queryRegex = /#GeminiQuery:\s*(?:\x60\x60\x60sql)?\s*([\s\S]+?)(?:\x60\x60\x60|$)/i;
-        const queryMatch = text.match(queryRegex);//amar banano signature er shathe match kore naki sheta check kora
-        if (queryMatch) {
-            const query = queryMatch[1].trim();
-            // signature alada kore query ber kora
-            text = text.replace(/(?:\x60\x60\x60sql\n*)?#GeminiQuery:[\s\S]*/i, '').trim();
+        // --- SAFE QUERY ENFORCEMENT ---
+        // NEW format: #GeminiMovies: movie1, movie2, movie3
+        const movieRegex = /#GeminiMovies:\s*([\s\S]+?)(?:\r?\n|$)/i;
+        const movieMatch = text.match(movieRegex);
+        if (movieMatch) {
+            const rawTitles = movieMatch[1].trim();
+            // Clean up titles (handle potential backticks or unnecessary formatting)
+            const movieTitles = rawTitles.split(',')
+                .map(t => t.trim().replace(/^['"`]+|['"`]+$/g, ''))
+                .filter(t => t.length > 0);
 
-            if (query.toUpperCase().startsWith('SELECT')) {
+            // Remove the signature from the text response
+            text = text.replace(movieRegex, '').trim();
+
+            if (movieTitles.length > 0) {
                 try {
-                    const result = await pool.query(query);
+                    // Safe, enforced SQL query: SELECT by exact titles
+                    const placeholders = movieTitles.map((_, index) => `$${index + 1}`).join(', ');
+                    const safeQuery = `SELECT id, title, poster_path, vote_average FROM movies WHERE title IN (${placeholders})`;
+                    const result = await pool.query(safeQuery, movieTitles);
                     suggestedMovies = result.rows;
+                    console.log(`[Chat] Enforced search for titles: ${movieTitles.join(', ')} -> Found ${suggestedMovies.length} movies.`);
                 } catch (dbErr) {
-                    console.error('Gemini DB query failed:', dbErr);
+                    console.error('[Chat] SQL Enforcement failed:', dbErr.message);
                 }
             }
         }
@@ -528,18 +538,23 @@ You are a highly personalized movie recommendation AI.
 Analyze the USER TIMELINE below. 
 Pick 10 movies for the user. 
 CRITICAL RULE: 
-- Consider the timestamps carefully. More recent activity (from the last few hours/minutes) is MUCH more important than activity from days ago.
-- Diversify the picks: base some on recent chat, some on ratings, some on genres, some on posts.
+- Recent activity (last few hours) is MUCH more important than old activity.
+- Diversify the picks based on ratings, chat log, and interests.
 - For each movie, write a BOLD, context-aware personalized message (max 20 words). 
-- Do NOT use prefixes like "Why:" or "Reason:". Just the direct message.
-- Example: "Since you were just asking about space, here's a sci-fi classic you'll love!"
-- Avoid movies that user has already favorite/voted 7+/watched (unless they asked for it in chat).
+- Avoid movies the user has already favorited or rated highly.
+
+SCHEMA:
+- movies (id, title, poster_path, backdrop_path, vote_average)
+- movie_genres (movie_id, genre_id)
+- genres (id, name)
+- To filter by genre name, JOIN movies m ON m.id = mg.movie_id JOIN movie_genres mg ON m.id = mg.movie_id JOIN genres g ON mg.genre_id = g.id WHERE g.name ILIKE '%genre%'
 
 FORMAT: Return exactly 10 blocks. Each block MUST be:
 #AI_REC: [SQL_QUERY_TO_FETCH_MOVIE_BY_TITLE] | [YOUR_PERSONALIZED_MESSAGE]
 
-SQL QUERY should be: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE_NAME%' LIMIT 1
-`;//ei systemprompt ami likhi nai, gemini ke bolsi nijeke eshob bujhaite, so ami gemini ke prompt disi jaate gemini gemini ke prompt dite pare
+SQL QUERY MUST ONLY BE: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE_NAME%' LIMIT 1
+DO NOT try to add a genre column to this query.
+`;
 
         const aiController = new AbortController();
         const aiTimeout = setTimeout(() => aiController.abort(), 45000);

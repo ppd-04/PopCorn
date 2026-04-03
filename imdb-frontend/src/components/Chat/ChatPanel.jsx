@@ -64,7 +64,7 @@ export default function ChatPanel({ open, onClose, theme = 'dark' }) {
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: JSON.stringify({
-          system: `You are a helpful movie assistant for the PopCorn app. Keep answers concise.\r\nIf the user asks for movie recommendations based on a particular attribute or criteria (e.g., space, sci-fi), use your own knowledge to decide which 3 or 4 movies perfectly fit their request.\r\nThen, output exactly one line in your response with the signature: #GeminiQuery: YOUR_POSTGRES_SQL_QUERY_HERE\r\nThe query should be a valid PostgreSQL SELECT statement that fetches those specific exact movie titles using the IN operator.\r\nAvailable columns in the "movies" table: id, title, poster_path, overview, vote_average, release_date.\r\nExample: #GeminiQuery: SELECT id, title, poster_path, vote_average FROM movies WHERE title IN ('Interstellar', 'The Martian', 'Gravity')`,
+          system: `You are a helpful movie assistant for the PopCorn app. Keep answers concise.\r\nIf the user asks for movie recommendations based on criteria (e.g., sci-fi, horror), pick 3 or 4 exact movie titles that fit.\r\nThen, at the end of your response, output exactly one line with the following format:\r\n#GeminiMovies: Movie Title 1, Movie Title 2, Movie Title 3\r\nONLY use real movie titles. Do NOT include any SQL or code.`,
           messages: nextMessages,
           model: 'gemma-3-4b-it'
         })
