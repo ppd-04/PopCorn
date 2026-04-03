@@ -1,0 +1,1590 @@
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { Pool } = require('pg');
+
+const app = express();
+// app hocche web server. pore app.something() kora hobe
+
+// cors mane cross origin resource sharing, frontend backend er moddhe connection kore
+// jwt diye logged in user ke mone rakhe, json web token
+// pool postgresql client for node js
+
+// Middleware
+// middleware majhkhan diye prottek req er age ei code gulo run kore
+// app.use(cors()) diye frontend theke backend call kore
+// 10 mb profile pic er size limit
+// json file read korar jonno 
+
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+// Database Connection, supabase er sathe coonection, ssl security r jonno
+// max pool 10 mane 10 ta db connect hote parbe
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
+    },
+
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+});
+// tasting er jonno
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('❌ Database connection error:', err.stack);
+    } else {
+        console.log('✅ Database connected successfully at:', res.rows[0].now);
+    }
+});
+
+// ==========================================
+// MIDDLEWARE DEFINITIONS
+// ==========================================
+const authenticateToken = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) return res.status(401).json({ error: 'Access denied. No token provided.' });
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) return res.status(403).json({ error: 'Invalid or expired token.' });
+        req.user = user;
+        next();
+    });
+};
+
+// New middleware for optional authentication (for browse failsafes)
+const optionalAuthenticate = (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        req.user = null;
+        return next();
+    }
+
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+        if (err) {
+            console.error('[Auth] JWT Verify Failed:', err.message);
+            req.user = null;
+            return next();
+        }
+        console.log('[Auth] Token verified for User ID:', user.userId);
+        req.user = user;
+        next();
+    });
+};
+
+// admin auth middleware
+const authenticateAdmin = (req, res, next) => {
+    authenticateToken(req, res, () => {
+        if (!req.user || !req.user.isAdmin) {
+            return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
+        }
+        next();
+    });
+};
+
+// Gemini er endpoint
+app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
+    try {
+        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
+        if (!apiKey) {
+            return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY in .env' }); //env file gemini er api key rakha ase. but prothome quotation mark deyai mara kheye gesi
+        }
+
+        const { messages, system, model } = req.body || {};
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return res.status(400).json({ error: 'messages array is required' });
+        }
+
+        // eshob habijabi gemini style e convert kora
+        const contents = [];
+        if (system && typeof system === 'string') {
+            contents.push({ role: 'user', parts: [{ text: `System instruction: ${system}` }] });
+        }
+        for (const m of messages) {
+            if (!m || !m.role || !m.content) continue;
+            contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+        }
+
+        const mdl = model || 'gemma-3-4b-it';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${apiKey}`;
+        const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents }),
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!resp.ok) {
+            const txt = await resp.text();
+            return res.status(502).json({ error: 'Gemini API error', details: txt });
+        }
+        const data = await resp.json();
+        // text ta extract kora
+        let text = '';
+        try {
+            text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+        } catch (_) { /* kichu na*/ }
+
+        let suggestedMovies = [];
+        const queryRegex = /#GeminiQuery:\s*(?:\x60\x60\x60sql)?\s*([\s\S]+?)(?:\x60\x60\x60|$)/i;
+        const queryMatch = text.match(queryRegex);//amar banano signature er shathe match kore naki sheta check kora
+        if (queryMatch) {
+            const query = queryMatch[1].trim();
+            // signature alada kore query ber kora
+            text = text.replace(/(?:\x60\x60\x60sql\n*)?#GeminiQuery:[\s\S]*/i, '').trim();
+
+            if (query.toUpperCase().startsWith('SELECT')) {
+                try {
+                    const result = await pool.query(query);
+                    suggestedMovies = result.rows;
+                } catch (dbErr) {
+                    console.error('Gemini DB query failed:', dbErr);
+                }
+            }
+        }
+
+        // authentication check
+        const uId = req.user ? (req.user.userId || req.user.id || req.user.user_id) : null;
+        if (uId) {
+            console.log('[Chat] Attempting to save message for UID:', uId);
+            try {
+                // user er recent message save kora eta recommendation e kaaje lage
+                const lastUserMessage = messages[messages.length - 1];
+                if (lastUserMessage && lastUserMessage.role === 'user') {
+                    await pool.query(
+                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        [uId, 'user', lastUserMessage.content]//user hole user role e rakhe
+                    );
+                }
+                if (text) {
+                    await pool.query(
+                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        [uId, 'model', text]//otherwise model
+                    );
+                }
+                console.log('[Chat] Successfully saved user and model messages.');
+            } catch (saveErr) {
+                console.error('[Chat] Save error:', saveErr.message);
+            }
+        }
+
+        return res.json({ text, suggestedMovies, raw: data });
+    } catch (err) {
+        if (err.name === 'AbortError') {
+            return res.status(504).json({ error: 'Request to Gemini timed out' });
+        }
+        console.error('AI chat proxy error:', err);
+        return res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+// first route e, new user register
+
+app.post('/api/register', async (req, res) => {
+    const { email, password, full_name, date_of_birth, gender, phone_number, address, profile_picture } = req.body;
+    const client = await pool.connect();
+
+    try {
+        // --- Server-side Validation ---
+        if (!email || !password) {
+            throw new Error('Email and password are required');
+        }
+
+        // Email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new Error('Invalid email format');
+        }
+
+        // Password strength check
+        if (password.length < 6) {
+            throw new Error('Password must be at least 6 characters long');
+        }
+
+        // Full name check
+        if (!full_name || full_name.trim().length < 2) {
+            throw new Error('Full name is required (at least 2 characters)');
+        }
+
+
+        if (date_of_birth) {
+            const dob = new Date(date_of_birth);
+            const now = new Date();
+            if (isNaN(dob.getTime()) || dob >= now) {
+                throw new Error('Please provide a valid date of birth');
+            }
+        }
+        // eta na dileo pera nai 
+        if (phone_number && phone_number.trim() !== '') {
+            const phoneRegex = /^[+]?[\d\s()-]{7,20}$/;
+            if (!phoneRegex.test(phone_number)) {
+                throw new Error('Invalid phone number format');
+            }
+        }
+
+        const allowedGenders = ['Male', 'Female', 'Other', 'Prefer not to say', ''];
+        if (gender && !allowedGenders.includes(gender)) {
+            throw new Error('Invalid gender selection');
+        }
+
+        // shuru 
+        await client.query('BEGIN');
+
+        // $1 er jaygay email boshbe, placeholder, WHERE EMAIL=EMAIL ER POSH VERSION
+
+        const userCheck = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (userCheck.rows.length > 0) {
+            throw new Error('User already exists');
+        }
+
+
+        // await mane wait kortese, promise korse password pailei diye dibe
+
+        const koybarHashingHobe = 10;
+        const passwordHash = await bcrypt.hash(password, koybarHashingHobe);
+
+
+        // apatoto password hash na kore password dicchi shudhu, pore ekhane hashing build kora lagbe
+        const userEmail = email.split('@')[0];
+        const insertQuery = `INSERT INTO users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
+            RETURNING user_id, email, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_admin`;
+        // const insertQuery = 'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email';
+        const newUser = await client.query(insertQuery, [
+            email,
+            passwordHash,
+            userEmail,
+            full_name ? full_name.trim() : null,
+            date_of_birth || null,
+            gender || null,
+            phone_number ? phone_number.trim() : null,
+            address ? address.trim() : null,
+            profile_picture || null
+        ]);
+
+        // commit koro
+        await client.query('COMMIT');
+
+        res.status(201).json({
+            message: 'User created successfully',
+            user: newUser.rows[0]
+        });
+
+    } catch (error) {
+        // genjam hoile rollback
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(400).json({ error: error.message || 'Registration failed' });
+    } finally {
+        client.release();
+    }
+});
+
+// existing user ke
+app.post('/api/login', async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (result.rows.length === 0) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        const user = result.rows[0];
+
+        // db te hash kora pass use kora hoise so hashed password er sathe compare kore
+        const validPassword = await bcrypt.compare(password, user.password);
+        if (!validPassword) {
+            return res.status(400).json({ error: 'Invalid email or password' });
+        }
+
+        // web tok        // jwt hocche ekta string je ta user info ke rakhe and secured
+        const token = jwt.sign(
+            { userId: user.user_id, email: user.email, isAdmin: user.is_admin }, // Payload
+            process.env.JWT_SECRET,                 // Secret Key
+            { expiresIn: '24h' }                     // Expiration, 1hour por abar login kora lagbe
+        );
+
+        // token ta react e pathao, mane frontend e token jay
+        res.json({
+            message: 'Login successful',
+            token: token,
+            user: {
+                id: user.user_id,
+                email: user.email,
+                username: user.username,
+                full_name: user.full_name,
+                date_of_birth: user.date_of_birth,
+                gender: user.gender,
+                phone_number: user.phone_number,
+                address: user.address,
+                profile_picture: user.profile_picture,
+                is_admin: user.is_admin
+            }
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Server error during login' });
+    }
+});
+
+// Start  server
+const PORT = process.env.PORT || 5000;
+
+// Middleware 
+// token eshb habijabi check kore, biroktikor jinish
+// abar verify kore
+app.get('/api/verify', authenticateToken, (req, res) => {
+    res.json({ valid: true, user: req.user });
+});
+
+//admin habijabi
+app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
+    try {
+        const result = await pool.query('select user_id, username, email, full_name, is_admin, date_joined from users order by user_id desc');
+        res.json(result.rows);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch users' });
+    }
+});
+
+app.delete('/api/admin/users/:id', authenticateAdmin, async (req, res) => {
+    try {
+        await pool.query('delete from users where user_id = $1', [req.params.id]);
+        res.json({ message: 'User deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete user' });
+    }
+});
+
+app.post('/api/admin/movies', authenticateAdmin, async (req, res) => {
+    const { title, overview, poster_path, release_date } = req.body;
+    try {
+        const query = `
+            insert into movies (title, overview, poster_path, release_date)
+            values ($1, $2, $3, $4)
+            returning *`;
+        const values = [title, overview, poster_path, release_date || null];
+        const result = await pool.query(query, values);
+        res.status(201).json(result.rows[0]);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to create movie' });
+    }
+});
+
+app.delete('/api/admin/movies/:id', authenticateAdmin, async (req, res) => {
+    try {
+        await pool.query('delete from movies where id = $1', [req.params.id]);
+        res.json({ message: 'Movie deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to delete movie' });
+    }
+});
+
+
+//browse page, best jinish
+
+app.get('/api/browse/trending', async (req, res) => {//uporer boro boro trending gula dekhai
+    try {
+        const result = await pool.query('select * from trending_movies_view order by random() limit 50');
+        console.log(`[Browse] Trending: sending ${result.rows.length} random movies from top 500 pool`);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch trending' });
+    }
+});
+
+app.get('/api/browse/collaborative', optionalAuthenticate, async (req, res) => {//similar minds gula dekhai
+    try {
+        const userId = req.user ? req.user.userId : null;
+        const result = await pool.query('select * from get_collaborative_recommendations($1)', [userId]);
+        console.log(`[Browse] Collaborative (User: ${userId || 'Guest'}): sending ${result.rows.length} movies`);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch collaborative recs' });
+    }
+});
+
+app.get('/api/browse/foryou', optionalAuthenticate, async (req, res) => {//genre based recommend kore
+    try {
+        const userId = req.user ? req.user.userId : null;
+        const result = await pool.query('select * from get_genre_recommendations($1)', [userId]);
+        console.log(`[Browse] ForYou (User: ${userId || 'Guest'}): sending ${result.rows.length} movies`);
+        res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch genre recs' });
+    }
+});
+
+app.get('/api/browse/related', optionalAuthenticate, async (req, res) => {//because you liked kichu ekta recoomend kore
+    try {
+        const userId = req.user ? req.user.userId : null;
+        console.log(`[Browse] Related Request - UserID: ${userId}`);
+
+        if (!userId) {
+            return res.json({ anchor: null, movies: [] });
+        }
+
+        const result = await pool.query('select * from get_recommendations_by_recently_liked($1)', [userId]);
+        console.log(`[Browse] Related SQL result: ${result.rows.length} rows`);
+
+        if (result.rows.length > 0) {
+            const anchorTitle = result.rows[0].anchor_title;
+            const movies = result.rows.map(row => {
+                const { anchor_title, ...movie } = row;
+                return movie;
+            });
+            console.log(`[Browse] Related: Found anchor "${anchorTitle}" with ${movies.length} matches`);
+            res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+            return res.json({ anchor: anchorTitle, movies });
+        } else {
+            console.log(`[Browse] Related: No recommendations found for User ${userId}`);
+        }
+
+    } catch (error) {
+        console.error('[Browse] Related Route Error:', error);
+        res.status(500).json({ error: 'Failed to fetch related recs' });
+    }
+});
+
+// ai er ta, amar favorite feature
+app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
+    try {
+        const userId = req.user ? (req.user.userId || req.user.id || req.user.user_id) : null;
+        const forceRefresh = req.query.force === 'true';
+
+        if (!userId) {
+            // guest er jonno emni random 
+            const guestRes = await pool.query('select * from movies where vote_average >= 8.2 order by random() limit 10');
+            return res.json({
+                recommendations: guestRes.rows.map(m => ({ ...m, ai_note: "Discover top-rated classics" })),
+                cached_at: new Date()
+            });
+        }
+
+        // gorib tai token shesh hoye jai tai cache kore rakhsi
+        if (!forceRefresh) {
+            const cacheRes = await pool.query(
+                `select recommendations, last_updated from user_ai_cache 
+                 where user_id = $1 and last_updated > (now() - interval '4 hours')`,
+                [userId]
+            );
+            if (cacheRes.rows.length > 0) {
+                console.log(`[Browse] AI: Returning cached results for User ${userId}`);
+                return res.json({
+                    recommendations: cacheRes.rows[0].recommendations,
+                    cached_at: cacheRes.rows[0].last_updated
+                });
+            }
+        }
+
+        console.log(`[Browse] AI: Generating new recommendations for User ${userId} (force=${forceRefresh})`);
+
+        // shobkichu milano
+        const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
+            pool.query('select g.name from user_interests ui join genres g on ui.genre_id = g.id where ui.user_id = $1', [userId]),
+            pool.query('select m.title, uf.created_at from user_favourites uf join movies m on uf.movie_id = m.id where uf.user_id = $1 order by uf.created_at desc limit 5', [userId]),
+            pool.query('select m.title, w.created_at from wishlist w join movies m on w.movie_id = m.id where w.user_id = $1 order by w.created_at desc limit 5', [userId]),
+            pool.query('select m.title, r.rating, r.created_at from movie_ratings r join movies m on r.movie_id = m.id where r.user_id = $1 order by r.created_at desc limit 10', [userId]),
+            pool.query('select m.title, c.content, c.created_at from movie_comments c join movies m on c.movie_id = m.id where c.user_id = $1 order by c.created_at desc limit 5', [userId]),
+            pool.query('select content, created_at from social_posts where user_id = $1 order by created_at desc limit 5', [userId]),
+            pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 15', [userId])
+        ]);
+
+        const timelineStrings = [
+            `Interests/Favorite Genres: ${genres.rows.map(g => g.name).join(', ') || 'Unknown'}`,
+            ...favs.rows.map(f => `[Favorite] Added ${f.title} at ${f.created_at}`),
+            ...wishlist.rows.map(w => `[Watchlist] Added ${w.title} at ${w.created_at}`),
+            ...ratings.rows.map(r => `[Rating] Rated ${r.title} as ${r.rating}/10 at ${r.created_at}`),
+            ...comments.rows.map(c => `[Comment] On ${c.title}: "${c.content}" at ${c.created_at}`),
+            ...posts.rows.map(p => `[Social Post] "${p.content}" at ${p.created_at}`),
+            ...chats.rows.reverse().map(ch => `[Chat Log] ${ch.role.toUpperCase()}: "${ch.content}" at ${ch.created_at}`)
+        ];
+
+        // 3. Call Gemini
+        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
+        const systemPrompt = `
+You are a highly personalized movie recommendation AI. 
+Analyze the USER TIMELINE below. 
+Pick 10 movies for the user. 
+CRITICAL RULE: 
+- Consider the timestamps carefully. More recent activity (from the last few hours/minutes) is MUCH more important than activity from days ago.
+- Diversify the picks: base some on recent chat, some on ratings, some on genres, some on posts.
+- For each movie, write a BOLD, context-aware personalized message (max 20 words). 
+- Do NOT use prefixes like "Why:" or "Reason:". Just the direct message.
+- Example: "Since you were just asking about space, here's a sci-fi classic you'll love!"
+- Avoid movies that user has already favorite/voted 7+/watched (unless they asked for it in chat).
+
+FORMAT: Return exactly 10 blocks. Each block MUST be:
+#AI_REC: [SQL_QUERY_TO_FETCH_MOVIE_BY_TITLE] | [YOUR_PERSONALIZED_MESSAGE]
+
+SQL QUERY should be: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE_NAME%' LIMIT 1
+`;//ei systemprompt ami likhi nai, gemini ke bolsi nijeke eshob bujhaite, so ami gemini ke prompt disi jaate gemini gemini ke prompt dite pare
+
+        const aiController = new AbortController();
+        const aiTimeout = setTimeout(() => aiController.abort(), 45000);
+
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [
+                    { role: 'user', parts: [{ text: `SYSTEM: ${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }
+                ]
+            }),
+            signal: aiController.signal
+        });
+        clearTimeout(aiTimeout);
+
+        if (!response.ok) {
+            const errText = await response.text();
+            console.error(`[Browse] Gemini API failed (${response.status}):`, errText);
+            throw new Error(`Gemini API failed with status ${response.status}`);
+        }
+        const data = await response.json();
+        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+        // haedball er moto ai er payload alada korlam
+        const recMatches = aiText.split('#AI_REC:').slice(1);
+        const recommendations = [];
+
+        for (const block of recMatches) {
+            const [queryPart, notePart] = block.split('|');
+            if (!queryPart || !notePart) continue;
+
+            try {
+                const sqlQuery = queryPart.trim();
+                const aiNote = notePart.trim();
+                const movieRes = await pool.query(sqlQuery);
+                if (movieRes.rows.length > 0) {
+                    recommendations.push({ ...movieRes.rows[0], ai_note: aiNote });
+                }
+            } catch (queryErr) {
+                console.error('AI Suggestion query failed (skipping):', queryErr.message);
+            }
+        }
+
+        // cache update
+        if (recommendations.length > 0) {
+            try {
+                await pool.query(
+                    `insert into user_ai_cache (user_id, recommendations, last_updated)
+                     values ($1, $2, now())
+                     on conflict (user_id) do update 
+                     set recommendations = excluded.recommendations, last_updated = now()`,
+                    [userId, JSON.stringify(recommendations)]
+                );
+                console.log(`[Browse] AI: Updated cache for User ${userId}`);
+            } catch (cacheErr) {
+                console.error(`[Browse] AI: Cache update failed for UID ${userId}:`, cacheErr.message);
+            }
+        }
+
+        return res.json({
+            recommendations,
+            cached_at: new Date()
+        });
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            console.error('[Browse] AI: Gemini request timed out after 45s');
+            return res.status(504).json({ error: 'AI generation timed out. Please try again.' });
+        }
+        console.error('[Browse] AI Critical Route Error:', error);
+        res.status(500).json({ error: 'Internal Discovery Engine Error', details: error.message });
+    }
+});
+
+// ==========================================
+// SOCIAL FEATURE ROUTES
+// ==========================================
+
+// post tost ashe
+app.get('/api/posts', async (req, res) => {
+    try {
+        // logged in naki
+        let currentUserId = null;
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                currentUserId = decoded.userId;
+            } catch (e) { /* ignore invalid tokens for public route */ }
+        }
+
+        const query = `
+            SELECT 
+                sp.post_id, sp.content, sp.image, sp.created_at, sp.updated_at, sp.user_id,
+                u.username, u.full_name, u.profile_picture,
+                COALESCE(lc.like_count, 0)::int AS like_count,
+                COALESCE(cc.comment_count, 0)::int AS comment_count,
+                CASE WHEN ul.user_id IS NOT NULL THEN true ELSE false END AS liked_by_me
+            FROM social_posts sp
+            JOIN users u ON sp.user_id = u.user_id
+            LEFT JOIN (
+                SELECT post_id, COUNT(*) AS like_count FROM post_likes GROUP BY post_id
+            ) lc ON sp.post_id = lc.post_id
+            LEFT JOIN (
+                SELECT post_id, COUNT(*) AS comment_count FROM post_comments GROUP BY post_id
+            ) cc ON sp.post_id = cc.post_id
+            LEFT JOIN post_likes ul ON sp.post_id = ul.post_id AND ul.user_id = $1
+            ORDER BY sp.created_at DESC
+        `;
+        const result = await pool.query(query, [currentUserId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+});
+
+//  new post lekhe
+app.post('/api/posts', authenticateToken, async (req, res) => {
+    const { content, image } = req.body;
+    const userId = req.user.userId;
+
+    try {
+        if (!content || content.trim().length === 0) {
+            return res.status(400).json({ error: 'Post content cannot be empty' });
+        }
+
+        const query = `
+            INSERT INTO social_posts (user_id, content, image)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+        const result = await pool.query(query, [userId, content.trim(), image || null]);
+
+
+        const fullPost = await pool.query(`
+            SELECT sp.*, u.username, u.full_name, u.profile_picture,
+                   0 AS like_count, 0 AS comment_count, false AS liked_by_me
+            FROM social_posts sp
+            JOIN users u ON sp.user_id = u.user_id
+            WHERE sp.post_id = $1
+        `, [result.rows[0].post_id]);
+
+        res.status(201).json(fullPost.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to create post' });
+    }
+});
+
+// only owner er jonno edit option 
+app.put('/api/posts/:id', authenticateToken, async (req, res) => {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+    const { content, image } = req.body;
+
+    try {
+
+        const ownerCheck = await pool.query('SELECT user_id FROM social_posts WHERE post_id = $1', [postId]);
+        if (ownerCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Post not found' });
+        }
+        if (ownerCheck.rows[0].user_id !== userId) {
+            return res.status(403).json({ error: 'You can only edit your own posts' });
+        }
+
+        if (!content || content.trim().length === 0) {
+            return res.status(400).json({ error: 'Post content cannot be empty' });
+        }
+
+        const query = `
+            UPDATE social_posts 
+            SET content = $1, image = $2, updated_at = NOW()
+            WHERE post_id = $3
+            RETURNING *
+        `;
+        const result = await pool.query(query, [content.trim(), image !== undefined ? image : null, postId]);
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to update post' });
+    }
+});
+
+// delete
+app.delete('/api/posts/:id', authenticateToken, async (req, res) => {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+
+    try {
+        const ownerCheck = await pool.query('SELECT user_id FROM social_posts WHERE post_id = $1', [postId]);
+        if (ownerCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Post painai' });
+        }
+        if (ownerCheck.rows[0].user_id !== userId) {
+            return res.status(403).json({ error: 'You can only delete your own posts' });
+        }
+
+        await pool.query('DELETE FROM social_posts WHERE post_id = $1', [postId]);
+        res.json({ message: 'Post deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete post sad' });
+    }
+});
+
+// like
+app.post('/api/posts/:id/like', authenticateToken, async (req, res) => {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+
+    try {
+
+        const existing = await pool.query(
+            'SELECT * FROM post_likes WHERE post_id = $1 AND user_id = $2',
+            [postId, userId]
+        );
+
+        if (existing.rows.length > 0) {
+
+            await pool.query('DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, userId]);
+            const countResult = await pool.query('SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1', [postId]);
+            res.json({ liked: false, like_count: countResult.rows[0].like_count });
+        } else {
+            // Like
+            await pool.query('INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)', [postId, userId]);
+            const countResult = await pool.query('SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1', [postId]);
+            res.json({ liked: true, like_count: countResult.rows[0].like_count });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to like' });
+    }
+});
+
+// comments
+app.get('/api/posts/:id/comments', async (req, res) => {
+    const postId = req.params.id;
+
+    try {
+        const query = `
+            SELECT pc.*, u.username, u.full_name, u.profile_picture
+            FROM post_comments pc
+            JOIN users u ON pc.user_id = u.user_id
+            WHERE pc.post_id = $1
+            ORDER BY pc.created_at ASC
+        `;
+        const result = await pool.query(query, [postId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+});
+
+// cmnt add
+app.post('/api/posts/:id/comments', authenticateToken, async (req, res) => {
+    const postId = req.params.id;
+    const userId = req.user.userId;
+    const { content } = req.body;
+
+    try {
+        if (!content || content.trim().length === 0) {
+            return res.status(400).json({ error: 'Comment cannot be empty' });
+        }
+
+        const query = `
+            INSERT INTO post_comments (post_id, user_id, content)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        `;
+        const result = await pool.query(query, [postId, userId, content.trim()]);
+
+        // Return with user info
+        const fullComment = await pool.query(`
+            SELECT pc.*, u.username, u.full_name, u.profile_picture
+            FROM post_comments pc
+            JOIN users u ON pc.user_id = u.user_id
+            WHERE pc.comment_id = $1
+        `, [result.rows[0].comment_id]);
+
+        res.status(201).json(fullComment.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+
+// owner delete kore commnt
+app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
+    const commentId = req.params.id;
+    const userId = req.user.userId;
+
+    try {
+        const ownerCheck = await pool.query('SELECT user_id FROM post_comments WHERE comment_id = $1', [commentId]);
+        if (ownerCheck.rows.length === 0) {
+            return res.status(404).json({ error: 'Comment not found' });
+        }
+        if (ownerCheck.rows[0].user_id !== userId) {
+            return res.status(403).json({ error: 'You can only delete your own comments' });
+        }
+
+        await pool.query('DELETE FROM post_comments WHERE comment_id = $1', [commentId]);
+        res.json({ message: 'Comment deleted successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete comment' });
+    }
+});
+
+// movie rating
+app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    const { rating } = req.body;
+
+    try {
+        if (!rating || rating < 1 || rating > 10) {
+            return res.status(400).json({ error: 'Rating must be between 1 and 10' });
+        }
+
+        const query = `
+            INSERT INTO movie_ratings (movie_id, user_id, rating)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (movie_id, user_id)
+            DO UPDATE SET rating = $3
+            RETURNING *
+        `;
+        await pool.query(query, [movieId, userId, rating]);
+
+
+        const stats = await pool.query(`
+            SELECT 
+                COALESCE(AVG(rating), 0)::numeric(3,1) AS avg_rating,
+                COUNT(*)::int AS total_ratings
+            FROM movie_ratings WHERE movie_id = $1
+        `, [movieId]);
+
+        res.json({
+            message: 'Rating saved',
+            my_rating: parseFloat(rating),
+            avg_rating: parseFloat(stats.rows[0].avg_rating),
+            total_ratings: stats.rows[0].total_ratings
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to save rating' });
+    }
+});
+
+// rating get
+app.get('/api/movies/:id/rating', async (req, res) => {
+    const movieId = req.params.id;
+
+    try {
+        let myRating = null;
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        if (token) {
+            try {
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const userRating = await pool.query(
+                    'SELECT rating FROM movie_ratings WHERE movie_id = $1 AND user_id = $2',
+                    [movieId, decoded.userId]
+                );
+                if (userRating.rows.length > 0) {
+                    myRating = parseFloat(userRating.rows[0].rating);
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        const stats = await pool.query(`
+            SELECT 
+                COALESCE(AVG(rating), 0)::numeric(3,1) AS avg_rating,
+                COUNT(*)::int AS total_ratings
+            FROM movie_ratings WHERE movie_id = $1
+        `, [movieId]);
+
+        res.json({
+            avg_rating: parseFloat(stats.rows[0].avg_rating),
+            total_ratings: stats.rows[0].total_ratings,
+            my_rating: myRating
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch rating' });
+    }
+});
+//movie cmnts
+app.get('/api/movies/:id/comments', async (req, res) => {
+    const movieId = req.params.id;
+    try {
+        const query = `
+            SELECT mc.*, u.username, u.full_name, u.profile_picture
+            FROM movie_comments mc
+            JOIN users u ON mc.user_id = u.user_id
+            WHERE mc.movie_id = $1
+            ORDER BY mc.created_at DESC
+        `;
+        const result = await pool.query(query, [movieId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch comments' });
+    }
+});
+
+// movie cmnt add
+app.post('/api/movies/:id/comments', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    const { content } = req.body;
+
+    try {
+        if (!content || content.trim().length === 0) {
+            return res.status(400).json({ error: 'Comment cannot be empty' });
+        }
+
+        const result = await pool.query(
+            'INSERT INTO movie_comments (movie_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
+            [movieId, userId, content.trim()]
+        );
+
+        const fullComment = await pool.query(`
+            SELECT mc.*, u.username, u.full_name, u.profile_picture
+            FROM movie_comments mc
+            JOIN users u ON mc.user_id = u.user_id
+            WHERE mc.comment_id = $1
+        `, [result.rows[0].comment_id]);
+
+        res.status(201).json(fullComment.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to add comment' });
+    }
+});
+
+// movie cmnt delete
+app.delete('/api/movie-comments/:id', authenticateToken, async (req, res) => {
+    const commentId = req.params.id;
+    const userId = req.user.userId;
+
+    try {
+        const check = await pool.query('SELECT user_id FROM movie_comments WHERE comment_id = $1', [commentId]);
+        if (check.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });
+        if (check.rows[0].user_id !== userId) return res.status(403).json({ error: 'You can only delete your own comments' });
+
+        await pool.query('DELETE FROM movie_comments WHERE comment_id = $1', [commentId]);
+        res.json({ message: 'Comment deleted' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to delete comment' });
+    }
+});
+
+//watchlist
+app.post('/api/movies/:id/watchlist', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const existing = await pool.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        if (existing.rows.length > 0) {
+            await pool.query('DELETE FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            res.json({ in_watchlist: false });
+        } else {
+            await pool.query('INSERT INTO watchlist (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            res.json({ in_watchlist: true });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to toggle watchlist' });
+    }
+});
+
+//fav
+app.post('/api/movies/:id/favourite', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const existing = await pool.query('SELECT * FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        if (existing.rows.length > 0) {
+            await pool.query('DELETE FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            res.json({ is_favourite: false });
+        } else {
+            await pool.query('INSERT INTO user_favourites (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            res.json({ is_favourite: true });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to toggle favourite' });
+    }
+});
+
+//watched
+app.post('/api/movies/:id/watched', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const existing = await pool.query('SELECT * FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        if (existing.rows.length > 0) {
+            await pool.query('DELETE FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            res.json({ is_watched: false });
+        } else {
+            await pool.query('INSERT INTO user_watched (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            res.json({ is_watched: true });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to toggle watched' });
+    }
+});
+
+// user status
+app.get('/api/movies/:id/status', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const [wl, fav, watched] = await Promise.all([
+            pool.query('SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]),
+            pool.query('SELECT 1 FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]),
+            pool.query('SELECT 1 FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId])
+        ]);
+        res.json({
+            in_watchlist: wl.rows.length > 0,
+            is_favourite: fav.rows.length > 0,
+            is_watched: watched.rows.length > 0
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch status' });
+    }
+});
+
+// kasakasi same genre movie, ekhane ai dhukaite hobe
+app.get('/api/movies/:id/related', async (req, res) => {
+    const movieId = req.params.id;
+    try {
+        const query = `
+            SELECT DISTINCT m.id, m.title, m.poster_path, m.vote_average, m.release_date
+            FROM movies m
+            JOIN movie_genres mg ON m.id = mg.movie_id
+            WHERE mg.genre_id IN (
+                SELECT genre_id FROM movie_genres WHERE movie_id = $1
+            )
+            AND m.id != $1
+            ORDER BY m.vote_average DESC NULLS LAST
+            LIMIT 10
+        `;
+        const result = await pool.query(query, [movieId]);
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch related movies' });
+    }
+});
+
+// abar profile
+app.get('/api/profile', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT user_id, email, username, full_name, date_of_birth, gender, 
+                    phone_number, address, profile_picture, date_joined, is_admin
+             FROM users WHERE user_id = $1`,
+            [userId]
+        );
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+        res.json(result.rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+});
+
+// UPDATE PROFILE 
+app.put('/api/profile', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const { full_name, phone_number, address, profile_picture } = req.body;
+
+    try {
+        const result = await pool.query(
+            `UPDATE users SET 
+                full_name = COALESCE($1, full_name),
+                phone_number = COALESCE($2, phone_number),
+                address = COALESCE($3, address),
+                profile_picture = COALESCE($4, profile_picture)
+             WHERE user_id = $5
+             RETURNING user_id, email, username, full_name, date_of_birth, gender, 
+                       phone_number, address, profile_picture, created_at`,
+            [full_name, phone_number, address, profile_picture, userId]
+        );
+
+        res.json({ message: 'Profile updated', user: result.rows[0] });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
+// password change wow
+app.put('/api/profile/password', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const { current_password, new_password } = req.body;
+
+    try {
+        if (!current_password || !new_password) {
+            return res.status(400).json({ error: 'Both current and new password are required sad' });
+        }
+        if (new_password.length < 6) {
+            return res.status(400).json({ error: 'New password must be at least 6 characters' });
+        }
+
+        // Verify current password
+        const user = await pool.query('SELECT password FROM users WHERE user_id = $1', [userId]);
+        if (user.rows.length === 0) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const validPassword = await bcrypt.compare(current_password, user.rows[0].password);
+        if (!validPassword) {
+            return res.status(400).json({ error: 'Current password is incorrect' });
+        }
+
+        // Abar hash koro
+        const passwordHash = await bcrypt.hash(new_password, 10);
+        await pool.query('UPDATE users SET password = $1 WHERE user_id = $2', [passwordHash, userId]);
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// watchlist get
+app.get('/api/profile/watchlist', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT w.movie_id, w.created_at AS added_at,
+                    m.title, m.poster_path, m.vote_average, m.release_date, m.overview
+             FROM watchlist w
+             LEFT JOIN movies m ON w.movie_id = m.id
+             WHERE w.user_id = $1
+             ORDER BY w.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch watchlist' });
+    }
+});
+
+// watchlist toggle
+app.post('/api/movies/:id/wishlist', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const existing = await pool.query('SELECT * FROM wishlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        if (existing.rows.length > 0) {
+            await pool.query('DELETE FROM wishlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            res.json({ in_wishlist: false });
+        } else {
+            await pool.query('INSERT INTO wishlist (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            res.json({ in_wishlist: true });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to toggle wishlist' });
+    }
+});
+
+// wiushlist
+app.get('/api/profile/wishlist', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT w.movie_id, w.created_at AS added_at,
+                    m.title, m.poster_path, m.vote_average, m.release_date, m.overview
+             FROM wishlist w
+             LEFT JOIN movies m ON w.movie_id = m.id
+             WHERE w.user_id = $1
+             ORDER BY w.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch wishlist' });
+    }
+});
+
+// fav movies with shob kisu
+
+app.get('/api/profile/favourites', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT uf.movie_id, uf.created_at AS added_at,
+                    m.title, m.poster_path, m.vote_average, m.release_date, m.overview
+             FROM user_favourites uf
+             LEFT JOIN movies m ON uf.movie_id = m.id
+             WHERE uf.user_id = $1
+             ORDER BY uf.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch favourites' });
+    }
+});
+
+// all rated movies byuser
+app.get('/api/profile/ratings', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT mr.movie_id, mr.rating, mr.created_at AS rated_at,
+                    m.title, m.poster_path, m.vote_average, m.release_date
+             FROM movie_ratings mr
+             LEFT JOIN movies m ON mr.movie_id = m.id
+             WHERE mr.user_id = $1
+             ORDER BY mr.created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch ratings' });
+    }
+});
+
+// actor director follow
+app.post('/api/people/:id/follow', authenticateToken, async (req, res) => {
+    const personId = req.params.id;
+    const userId = req.user.userId;
+    const { person_name, person_role, profile_path } = req.body;
+
+    try {
+        const existing = await pool.query(
+            'SELECT * FROM favourite_people WHERE user_id = $1 AND person_id = $2',
+            [userId, personId]
+        );
+        if (existing.rows.length > 0) {
+            await pool.query('DELETE FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+            res.json({ is_following: false });
+        } else {
+            await pool.query(
+                'INSERT INTO favourite_people (user_id, person_id, person_name, person_role, profile_path) VALUES ($1, $2, $3, $4, $5)',
+                [userId, personId, person_name || 'Unknown', person_role || null, profile_path || null]
+            );
+            res.json({ is_following: true });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to toggle follow' });
+    }
+});
+
+// followed lsit
+app.get('/api/profile/favourite-people', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            `SELECT * FROM favourite_people WHERE user_id = $1 ORDER BY created_at DESC`,
+            [userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch favourite people' });
+    }
+});
+
+// genre preference
+app.put('/api/profile/interests', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    const { genre_ids } = req.body; // array of genre_id integers
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+        // Clear existing interests
+        await client.query('DELETE FROM user_interests WHERE user_id = $1', [userId]);
+        // Insert new ones
+        if (genre_ids && genre_ids.length > 0) {
+            const values = genre_ids.map((gid, i) => `($1, $${i + 2})`).join(', ');
+            const params = [userId, ...genre_ids];
+            await client.query(`INSERT INTO user_interests (user_id, genre_id) VALUES ${values}`, params);
+        }
+        await client.query('COMMIT');
+
+        // Return updated interests
+        const result = await pool.query(
+            `SELECT ui.genre_id, g.name AS genre_name
+             FROM user_interests ui
+             LEFT JOIN genres g ON ui.genre_id = g.id
+             WHERE ui.user_id = $1`,
+            [userId]
+        );
+        res.json({ message: 'Interests updated', interests: result.rows });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error(error);
+        res.status(500).json({ error: 'Failed to update interests' });
+    } finally {
+        client.release();
+    }
+});
+
+//stat dashboard
+app.get('/api/profile/stats', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        // koyta dekhse
+        const watchedCount = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM user_watched WHERE user_id = $1', [userId]
+        );
+
+        // Average rating given
+        const avgRating = await pool.query(
+            'SELECT COALESCE(AVG(rating), 0)::numeric(3,1) AS avg FROM movie_ratings WHERE user_id = $1', [userId]
+        );
+
+        // Total ratings given
+        const ratingsCount = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM movie_ratings WHERE user_id = $1', [userId]
+        );
+
+        // Watchlist count
+        const watchlistCount = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM watchlist WHERE user_id = $1', [userId]
+        );
+
+        // Favourites count
+        const favouritesCount = await pool.query(
+            'SELECT COUNT(*)::int AS count FROM user_favourites WHERE user_id = $1', [userId]
+        );
+
+        // Genre distribution 
+        const genreDistribution = await pool.query(
+            `SELECT g.name, COUNT(*)::int AS count
+             FROM user_watched uw
+             JOIN movie_genres mg ON uw.movie_id = mg.movie_id
+             JOIN genres g ON mg.genre_id = g.id
+             WHERE uw.user_id = $1
+             GROUP BY g.name
+             ORDER BY count DESC
+             LIMIT 10`,
+            [userId]
+        );
+
+        // Rating distribution 
+        const ratingDistribution = await pool.query(
+            `SELECT FLOOR(rating)::int AS rating_value, COUNT(*)::int AS count
+             FROM movie_ratings
+             WHERE user_id = $1
+             GROUP BY FLOOR(rating)
+             ORDER BY rating_value`,
+            [userId]
+        );
+
+        // Monthly activity 
+        const monthlyActivity = await pool.query(
+            `SELECT 
+                TO_CHAR(created_at, 'YYYY-MM') AS month,
+                COUNT(*)::int AS activity_count
+             FROM user_activity
+             WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '6 months'
+             GROUP BY TO_CHAR(created_at, 'YYYY-MM')
+             ORDER BY month`,
+            [userId]
+        );
+
+        // Recent activity
+        const recentActivity = await pool.query(
+            `SELECT ua.*, m.title AS movie_title, m.poster_path
+             FROM user_activity ua
+             LEFT JOIN movies m ON ua.movie_id = m.id
+             WHERE ua.user_id = $1
+             ORDER BY ua.created_at DESC
+             LIMIT 20`,
+            [userId]
+        );
+
+        // User interests
+        const interests = await pool.query(
+            `SELECT ui.genre_id, g.name AS genre_name
+             FROM user_interests ui
+             LEFT JOIN genres g ON ui.genre_id = g.id
+             WHERE ui.user_id = $1`,
+            [userId]
+        );
+
+        res.json({
+            movies_watched: watchedCount.rows[0].count,
+            avg_rating: parseFloat(avgRating.rows[0].avg),
+            total_ratings: ratingsCount.rows[0].count,
+            watchlist_count: watchlistCount.rows[0].count,
+            favourites_count: favouritesCount.rows[0].count,
+            genre_distribution: genreDistribution.rows,
+            rating_distribution: ratingDistribution.rows,
+            monthly_activity: monthlyActivity.rows,
+            recent_activity: recentActivity.rows,
+            interests: interests.rows
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// wishlist status
+app.get('/api/movies/:id/wishlist-status', authenticateToken, async (req, res) => {
+    const movieId = req.params.id;
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(
+            'SELECT 1 FROM wishlist WHERE user_id = $1 AND movie_id = $2',
+            [userId, movieId]
+        );
+        res.json({ in_wishlist: result.rows.length > 0 });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch wishlist status' });
+    }
+});
+
+// all genre
+// smartly search suggest kora
+app.get('/api/movies/search', async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim();
+        if (!q) {
+            return res.json([]);
+        }
+        // Prefix match for best UX; ordered lexicographically by title
+        const result = await pool.query(
+            `select 
+               m.id, 
+               m.title, 
+               m.poster_path, 
+               m.release_date, 
+               m.overview,
+               coalesce(round(avg(r.rating)::numeric, 1), 0)::float as avg_rating,
+               coalesce(count(r.rating), 0)::int as rating_count
+             from movies m
+             left join movie_ratings r on r.movie_id = m.id
+             where m.title ilike $1
+             group by m.id, m.title, m.poster_path, m.release_date, m.overview
+             ORDER bY m.title ASC
+             LIMIt 5`,
+            [q + '%']
+        );
+        return res.json(result.rows);
+    } catch (error) {
+        console.error('Movie search error:', error);
+        return res.status(500).json({ error: 'Failed to fetch movie suggestions' });
+    }
+});
+
+// @ diye mention kora
+app.get('/api/movies/mention', async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim();
+        if (!q) return res.json([]);
+        const result = await pool.query(
+            `select 
+               m.id,
+               m.title,
+               m.poster_path,
+               m.release_date,
+               coalesce(round(avg(r.rating)::numeric, 1), 0)::float as avg_rating,
+               coalesce(count(r.rating), 0)::int as rating_count
+             from movies m
+             left join movie_ratings r on r.movie_id = m.id
+             where m.title ilike '%' || $1 || '%'
+             group by m.id, m.title, m.poster_path, m.release_date
+             order by rating_count desc, avg_rating desc, m.title asc
+             LIMIT 3`,
+            [q]
+        );
+        return res.json(result.rows);
+    } catch (error) {
+        console.error('Movie mention search error:', error);
+        return res.status(500).json({ error: 'Failed to fetch mention suggestions' });
+    }
+});
+
+// exact title neyar jonno jaate @inters dile blue hoye @interstellar na dekhai
+app.get('/api/movies/resolve', async (req, res) => {
+    try {
+        const title = (req.query.title || '').trim();
+        if (!title) return res.status(400).json({ error: 'title is required' });
+        const result = await pool.query(
+            `select id, title from movies where lower(title) = lower($1) limit 1`,
+            [title]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+        return res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Movie exact resolve error:', err);
+        return res.status(500).json({ error: 'Failed to resolve title' });
+    }
+});
+
+// longest possible mention ber kora. jaate @batman: the dark knight likhle o @batman e theme na jai
+app.get('/api/movies/mention/resolve', async (req, res) => {
+    try {
+        const text = (req.query.text || '').trim();
+        if (!text) return res.status(400).json({ error: 'text is required' });
+        const result = await pool.query(
+            `select id, title
+             from movies m
+             where lower($1) like lower(m.title) || '%'
+             order by length(m.title) desc
+             limit 1`,
+            [text]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+        return res.json(result.rows[0]);
+    } catch (err) {
+        console.error('Movie mention resolve error:', err);
+        return res.status(500).json({ error: 'Failed to resolve mention' });
+    }
+});
+
+app.get('/api/genres', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT id, name FROM genres ORDER BY name');
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch genres' });
+    }
+});
+
+app.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+// ovvai
