@@ -56,6 +56,11 @@ const MovieDetails = ({ user }) => {
 
   // Related movies
   const [relatedMovies, setRelatedMovies] = useState([]);
+  const [cast, setCast] = useState([]);
+
+  // Threading states
+  const [replyToId, setReplyToId] = useState(null);
+  const [replyContent, setReplyContent] = useState('');
 
   useEffect(() => {
     async function fetchMovie() {
@@ -114,6 +119,14 @@ const MovieDetails = ({ user }) => {
     } catch (err) { console.error('Failed to fetch comments:', err); }
   }, [id]);
 
+  // Fetch Cast
+  const fetchCast = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/movies/${id}/cast`);
+      if (res.ok) setCast(await res.json());
+    } catch (err) { console.error('Failed to fetch cast:', err); }
+  }, [id]);
+
   // Fetch related movies
   const fetchRelated = useCallback(async () => {
     try {
@@ -129,8 +142,9 @@ const MovieDetails = ({ user }) => {
       fetchStatus();
       fetchComments();
       fetchRelated();
+      fetchCast();
     }
-  }, [id, fetchRating, fetchStatus, fetchComments, fetchRelated]);
+  }, [id, fetchRating, fetchStatus, fetchComments, fetchRelated, fetchCast]);
 
   // ---- HANDLERS ----
 
@@ -168,21 +182,27 @@ const MovieDetails = ({ user }) => {
     } catch (err) { console.error(`Toggle ${type} failed:`, err); }
   };
 
-  const handleAddComment = async (e) => {
-    e.preventDefault();
+  const handleAddComment = async (parentId = null) => {
+    const text = parentId ? replyContent : newComment;
     if (!user) return alert('Please log in to post comments');
-    if (!newComment.trim()) return;
+    if (!text.trim()) return;
+    
     setSubmittingComment(true);
     try {
       const res = await fetch(`${API_BASE}/movies/${id}/comments`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ content: newComment.trim() })
+        body: JSON.stringify({ content: text.trim(), parent_id: parentId })
       });
       if (res.ok) {
         const comment = await res.json();
-        setComments([comment, ...comments]);
-        setNewComment('');
+        setComments([...comments, comment]);
+        if (parentId) {
+          setReplyToId(null);
+          setReplyContent('');
+        } else {
+          setNewComment('');
+        }
       }
     } catch (err) { alert('Failed to post comment'); }
     finally { setSubmittingComment(false); }
@@ -365,62 +385,79 @@ const MovieDetails = ({ user }) => {
           </div>
         </div>
 
+        {/* ========== CAST & CREW ========== */}
+        {cast.length > 0 && (
+          <div className="cast-section">
+            <h2 className="md-section-title">🎭 Cast & Crew</h2>
+            <div className="cast-scroller">
+              {cast.map(person => (
+                <Link to={`/user/${person.id}`} key={person.id} className="cast-card">
+                  <img
+                    src={person.profile_path ? `https://image.tmdb.org/t/p/w200${person.profile_path}` : 'https://via.placeholder.com/200x300?text=No+Photo'}
+                    alt={person.name}
+                    className="cast-image"
+                  />
+                  <div className="cast-info">
+                    <p className="cast-name">{person.name}</p>
+                    <p className="cast-role">{person.character}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ========== COMMENTS SECTION ========== */}
         <div className="md-comments-section">
           <h2 className="md-section-title">💬 Discussion ({comments.length})</h2>
 
-          {/* Comment form — visible for everyone */}
-          <form className="md-add-comment" onSubmit={handleAddComment}>
-            <div className="md-comment-avatar">
-              {user && user.profile_picture ? (
-                <img src={user.profile_picture} alt="You" />
-              ) : '👤'}
+          {!replyToId && (
+            <div className="md-add-comment">
+              <div className="md-comment-avatar">
+                {user && user.profile_picture ? (
+                  <img src={user.profile_picture} alt="You" />
+                ) : '👤'}
+              </div>
+              <div className="md-comment-input-wrap">
+                <MentionInput
+                  className="md-comment-input"
+                  placeholder={user ? "Share your thoughts about this movie..." : "Log in to share your thoughts..."}
+                  value={newComment}
+                  onChange={(v) => setNewComment(v)}
+                  disabled={submittingComment}
+                />
+                <button
+                  className="md-comment-submit-btn"
+                  onClick={() => handleAddComment(null)}
+                  disabled={submittingComment || !newComment.trim()}
+                >
+                  {submittingComment ? 'Posting...' : 'Post Comment'}
+                </button>
+              </div>
             </div>
-            <div className="md-comment-input-wrap">
-              <MentionInput
-                className="md-comment-input"
-                placeholder={user ? "Share your thoughts about this movie..." : "Log in to share your thoughts..."}
-                value={newComment}
-                onChange={(v) => setNewComment(v)}
-                disabled={submittingComment}
-              />
-              <button
-                className="md-comment-submit-btn"
-                type="submit"
-                disabled={submittingComment || !newComment.trim()}
-              >
-                {submittingComment ? 'Posting...' : 'Post Comment'}
-              </button>
-            </div>
-          </form>
+          )}
 
           {comments.length === 0 ? (
             <div className="md-no-comments">No comments yet. Be the first to share your thoughts!</div>
           ) : (
-            comments.map(comment => (
-              <div key={comment.comment_id} className="md-comment-item">
-                <div className="md-comment-avatar">
-                  {comment.profile_picture ? (
-                    <img src={comment.profile_picture} alt={comment.username} />
-                  ) : '👤'}
-                </div>
-                <div className="md-comment-bubble">
-                  <div className="md-comment-author">{comment.full_name || comment.username}</div>
-                  <div className="md-comment-text">{renderWithMentions(comment.content, (path) => window.location.href = path)}</div>
-                  <div className="md-comment-footer">
-                    <span className="md-comment-time">{timeAgo(comment.created_at)}</span>
-                    {user && user.id === comment.user_id && (
-                      <button
-                        className="md-comment-delete"
-                        onClick={() => handleDeleteComment(comment.comment_id)}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+            <div className="md-comments-list">
+              {comments.filter(c => !c.parent_id).map(c => (
+                <MDCommentItem 
+                  key={c.comment_id}
+                  comment={c}
+                  allComments={comments}
+                  user={user}
+                  onDelete={handleDeleteComment}
+                  onReply={setReplyToId}
+                  replyToId={replyToId}
+                  replyContent={replyContent}
+                  setReplyContent={setReplyContent}
+                  submitReply={handleAddComment}
+                  level={1}
+                  navigate={navigate}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -458,4 +495,73 @@ const MovieDetails = ({ user }) => {
   );
 };
 
+const MDCommentItem = ({ 
+  comment, allComments, user, onDelete, onReply, replyToId, 
+  replyContent, setReplyContent, submitReply, level, navigate
+}) => {
+  const replies = allComments.filter(r => r.parent_id === comment.comment_id);
+  const isOwner = user && (user.id === comment.user_id || user.user_id === comment.user_id);
+
+  return (
+    <div className={`md-comment-thread-container md-level-${level} ${level > 1 ? 'md-nested' : ''}`}>
+      <div className="md-comment-item">
+        <div className="md-comment-avatar">
+          {comment.profile_picture ? <img src={comment.profile_picture} alt={comment.username} /> : '👤'}
+        </div>
+        <div className="md-comment-bubble">
+          <div className="md-comment-author">{comment.full_name || comment.username}</div>
+          <div className="md-comment-text">{renderWithMentions(comment.content, navigate)}</div>
+          <div className="md-comment-footer">
+            <span className="md-comment-time">{timeAgo(comment.created_at)}</span>
+            {level < 3 && user && (
+              <button className="md-comment-action-btn" onClick={() => onReply(comment.comment_id)}>Reply</button>
+            )}
+            {isOwner && (
+              <button className="md-comment-action-btn md-delete" onClick={() => onDelete(comment.comment_id)}>Delete</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {replyToId === comment.comment_id && (
+        <div className="md-reply-form-inline">
+          <MentionInput
+            className="md-comment-input small" 
+            placeholder={`Reply to ${comment.username}...`}
+            value={replyContent} 
+            onChange={v => setReplyContent(v)}
+            autoFocus
+          />
+          <div className="md-reply-actions">
+            <button className="md-reply-submit" onClick={() => submitReply(comment.comment_id)}>Post Reply</button>
+            <button className="md-reply-cancel" onClick={() => onReply(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {replies.length > 0 && (
+        <div className="md-replies-list">
+          {replies.map(r => (
+            <MDCommentItem 
+              key={r.comment_id}
+              comment={r}
+              allComments={allComments}
+              user={user}
+              onDelete={onDelete}
+              onReply={onReply}
+              replyToId={replyToId}
+              replyContent={replyContent}
+              setReplyContent={setReplyContent}
+              submitReply={submitReply}
+              level={level + 1}
+              navigate={navigate}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default MovieDetails;
+

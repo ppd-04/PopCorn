@@ -1662,3 +1662,149 @@
   font-weight: 600;
   user-select: none;
 }
+
+
+/* -- Threaded Comments Styles -- */
+.comment-thread-container {
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.comment-thread-container.level-2 {
+    margin-left: 42px;
+    border-left: 2px solid rgba(255, 255, 255, 0.08);
+    padding-left: 12px;
+}
+
+.comment-thread-container.level-3 {
+    margin-left: 24px;
+    border-left: 2px solid rgba(255, 255, 255, 0.05);
+    padding-left: 10px;
+}
+
+.comment-action-link {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 0;
+    margin-right: 12px;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.comment-action-link:hover {
+    color: #f5c518;
+}
+
+.comment-action-link.delete:hover {
+    color: #fb7185;
+}
+
+.reply-form-inline {
+    margin-top: 8px;
+    margin-bottom: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 10px;
+    border-radius: 8px;
+}
+
+.reply-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.reply-submit-btn {
+    background: #f5c518;
+    color: black;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.reply-cancel-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    cursor: pointer;
+}
+
+/* -- Cast Section -- */
+.cast-section {
+    margin-top: 40px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding-top: 30px;
+}
+
+.cast-section h2 {
+    font-size: 22px;
+    margin-bottom: 20px;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.cast-scroller {
+    display: flex;
+    overflow-x: auto;
+    gap: 16px;
+    padding-bottom: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.1) transparent;
+}
+
+.cast-card {
+    min-width: 130px;
+    max-width: 130px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    overflow: hidden;
+    transition: transform 0.2s, background 0.2s;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.cast-card:hover {
+    transform: translateY(-5px);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.cast-image {
+    width: 130px;
+    height: 175px;
+    object-fit: cover;
+    background: #1a1a1a;
+}
+
+.cast-info {
+    padding: 10px;
+}
+
+.cast-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cast-role {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.4);
+    margin: 2px 0 0;
+    display: block;
+    line-height: 1.3;
+}
+

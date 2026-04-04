@@ -903,7 +903,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 app.post('/api/posts/:id/comments', authenticateToken, async (req, res) => {
     const postId = req.params.id;
     const userId = req.user.userId;
-    const { content } = req.body;
+    const { content, parent_id } = req.body;
 
     try {
         if (!content || content.trim().length === 0) {
@@ -911,11 +911,11 @@ app.post('/api/posts/:id/comments', authenticateToken, async (req, res) => {
         }
 
         const query = `
-            INSERT INTO post_comments (post_id, user_id, content)
-            VALUES ($1, $2, $3)
+            INSERT INTO post_comments (post_id, user_id, content, parent_id)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
         `;
-        const result = await pool.query(query, [postId, userId, content.trim()]);
+        const result = await pool.query(query, [postId, userId, content.trim(), parent_id || null]);
 
         // Return with user info
         const fullComment = await pool.query(`
@@ -1084,7 +1084,7 @@ app.get('/api/movies/:id/comments', async (req, res) => {
             FROM movie_comments mc
             JOIN users u ON mc.user_id = u.user_id
             WHERE mc.movie_id = $1
-            ORDER BY mc.created_at DESC
+            ORDER BY mc.created_at ASC
         `;
         const result = await pool.query(query, [movieId]);
         res.json(result.rows);
@@ -1098,7 +1098,7 @@ app.get('/api/movies/:id/comments', async (req, res) => {
 app.post('/api/movies/:id/comments', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
-    const { content } = req.body;
+    const { content, parent_id } = req.body;
 
     try {
         if (!content || content.trim().length === 0) {
@@ -1106,8 +1106,8 @@ app.post('/api/movies/:id/comments', authenticateToken, async (req, res) => {
         }
 
         const result = await pool.query(
-            'INSERT INTO movie_comments (movie_id, user_id, content) VALUES ($1, $2, $3) RETURNING *',
-            [movieId, userId, content.trim()]
+            'INSERT INTO movie_comments (movie_id, user_id, content, parent_id) VALUES ($1, $2, $3, $4) RETURNING *',
+            [movieId, userId, content.trim(), parent_id || null]
         );
 
         const fullComment = await pool.query(`
@@ -2009,7 +2009,7 @@ app.get('/api/series/:id/comments', async (req, res) => {
             FROM series_comments c
             JOIN users u ON c.user_id = u.user_id
             WHERE c.series_id = $1
-            ORDER BY c.created_at DESC
+            ORDER BY c.created_at ASC
         `;
         const result = await pool.query(query, [id]);
         res.json(result.rows);
@@ -2021,7 +2021,7 @@ app.get('/api/series/:id/comments', async (req, res) => {
 
 app.post('/api/series/:id/comments', authenticateToken, async (req, res) => {
     const { id } = req.params;
-    const { content } = req.body;
+    const { content, parent_id } = req.body;
     const userId = req.user.userId;
 
     if (!content || !content.trim()) {
@@ -2030,9 +2030,9 @@ app.post('/api/series/:id/comments', authenticateToken, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `INSERT INTO series_comments (series_id, user_id, content) 
-             VALUES ($1, $2, $3) RETURNING *`,
-            [id, userId, content.trim()]
+            `INSERT INTO series_comments (series_id, user_id, content, parent_id) 
+             VALUES ($1, $2, $3, $4) RETURNING *`,
+            [id, userId, content.trim(), parent_id || null]
         );
 
         const comment = result.rows[0];
@@ -2844,6 +2844,57 @@ app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// GET Movie Cast (Local + TMDB fallback)
+app.get('/api/movies/:id/cast', async (req, res) => {
+    const movieId = req.params.id;
+    try {
+        // Try local DB first
+        const localCast = await pool.query(`
+            SELECT p.id, p.name, p.profile_path, mc.character, mc.cast_order
+            FROM movie_cast mc
+            JOIN people p ON mc.person_id = p.id
+            WHERE mc.movie_id = $1
+            ORDER BY mc.cast_order ASC
+        `, [movieId]);
+
+        if (localCast.rows.length > 0) {
+            return res.json(localCast.rows);
+        }
+
+        // Fallback to TMDB
+        const tmdbIdRes = await pool.query('SELECT tmdb_id FROM movies WHERE id = $1', [movieId]);
+        if (tmdbIdRes.rows.length > 0) {
+            const tmdbId = tmdbIdRes.rows[0].tmdb_id;
+            const TMDB_API_KEY = process.env.TMDB_API_KEY || 'ffb76769eee5be098b949fd3877a9d0b';
+            const castRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${TMDB_API_KEY}`);
+            if (castRes.ok) {
+                const data = await castRes.json();
+                const rawCast = data.cast.slice(0, 15); // Top 15 members
+                
+                // USER RULE: Only show people that exist in our 'people' table
+                const personIds = rawCast.map(c => c.id);
+                const localPeopleRes = await pool.query('SELECT id, name, profile_path FROM people WHERE id = ANY($1)', [personIds]);
+                const localPeopleMap = new Map(localPeopleRes.rows.map(p => [p.id, p]));
+
+                const filteredCast = rawCast
+                    .filter(c => localPeopleMap.has(c.id))
+                    .map(c => ({
+                        ...localPeopleMap.get(c.id),
+                        character: c.character,
+                        cast_order: c.order
+                    }));
+                
+                return res.json(filteredCast);
+            }
+        }
+
+        res.json([]);
+    } catch (error) {
+        console.error('Cast Fetch Error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 

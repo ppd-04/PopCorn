@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { renderWithMentions } from '../../utils/MentionsUtil';
+import MentionInput from '../Social/MentionInput';
 import { supabase } from '../../supabaseClient';
 import './SeriesDetails.css';
 
@@ -52,6 +54,10 @@ const SeriesDetails = ({ user }) => {
 
   // Related series
   const [relatedSeries, setRelatedSeries] = useState([]);
+
+  // Threading states
+  const [replyToId, setReplyToId] = useState(null);
+  const [replyContent, setReplyContent] = useState('');
 
   // Fetch series data from Supabase
   useEffect(() => {
@@ -205,21 +211,26 @@ const SeriesDetails = ({ user }) => {
     } catch (err) { console.error(`Toggle ${type} failed:`, err); }
   };
 
-  const handleAddComment = async (e) => {
-    e.preventDefault();
+  const handleAddComment = async (parentId = null) => {
+    const text = parentId ? replyContent : newComment;
     if (!user) return alert('Please log in to post comments');
-    if (!newComment.trim()) return;
+    if (!text.trim()) return;
     setSubmittingComment(true);
     try {
       const res = await fetch(`${API_BASE}/series/${id}/comments`, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ content: newComment.trim() })
+        body: JSON.stringify({ content: text.trim(), parent_id: parentId })
       });
       if (res.ok) {
         const comment = await res.json();
-        setComments([comment, ...comments]);
-        setNewComment('');
+        setComments([...comments, comment]);
+        if (parentId) {
+          setReplyToId(null);
+          setReplyContent('');
+        } else {
+          setNewComment('');
+        }
       }
     } catch (err) { alert('Failed to post comment'); }
     finally { setSubmittingComment(false); }
@@ -557,57 +568,53 @@ const SeriesDetails = ({ user }) => {
         <div className="sd-comments-section">
           <h2 className="sd-section-title">💬 Discussion ({comments.length})</h2>
 
-          <form className="sd-add-comment" onSubmit={handleAddComment}>
-            <div className="sd-comment-avatar">
-              {user && user.profile_picture ? (
-                <img src={user.profile_picture} alt="You" />
-              ) : '👤'}
+          {!replyToId && (
+            <div className="sd-add-comment">
+              <div className="sd-comment-avatar">
+                {user && user.profile_picture ? (
+                  <img src={user.profile_picture} alt="You" />
+                ) : '👤'}
+              </div>
+              <div className="sd-comment-input-wrap">
+                <MentionInput
+                  className="sd-comment-input"
+                  placeholder={user ? "Share your thoughts about this series..." : "Log in to share your thoughts..."}
+                  value={newComment}
+                  onChange={(v) => setNewComment(v)}
+                  disabled={submittingComment}
+                />
+                <button
+                  className="sd-comment-submit-btn"
+                  onClick={() => handleAddComment(null)}
+                  disabled={submittingComment || !newComment.trim()}
+                >
+                  {submittingComment ? 'Posting...' : 'Post Comment'}
+                </button>
+              </div>
             </div>
-            <div className="sd-comment-input-wrap">
-              <textarea
-                className="sd-comment-input"
-                placeholder={user ? "Share your thoughts about this series..." : "Log in to share your thoughts..."}
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                disabled={submittingComment}
-              />
-              <button
-                className="sd-comment-submit-btn"
-                type="submit"
-                disabled={submittingComment || !newComment.trim()}
-              >
-                {submittingComment ? 'Posting...' : 'Post Comment'}
-              </button>
-            </div>
-          </form>
+          )}
 
           {comments.length === 0 ? (
             <div className="sd-no-comments">No comments yet. Be the first to share your thoughts!</div>
           ) : (
-            comments.map(comment => (
-              <div key={comment.comment_id} className="sd-comment-item">
-                <div className="sd-comment-avatar">
-                  {comment.profile_picture ? (
-                    <img src={comment.profile_picture} alt={comment.username} />
-                  ) : '👤'}
-                </div>
-                <div className="sd-comment-bubble">
-                  <div className="sd-comment-author">{comment.full_name || comment.username}</div>
-                  <div className="sd-comment-text">{comment.content}</div>
-                  <div className="sd-comment-footer">
-                    <span className="sd-comment-time">{timeAgo(comment.created_at)}</span>
-                    {user && user.id === comment.user_id && (
-                      <button
-                        className="sd-comment-delete"
-                        onClick={() => handleDeleteComment(comment.comment_id)}
-                      >
-                        Delete
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))
+            <div className="sd-comments-list">
+              {comments.filter(c => !c.parent_id).map(comment => (
+                <SDCommentItem 
+                  key={comment.comment_id}
+                  comment={comment}
+                  allComments={comments}
+                  user={user}
+                  onDelete={handleDeleteComment}
+                  onReply={setReplyToId}
+                  replyToId={replyToId}
+                  replyContent={replyContent}
+                  setReplyContent={setReplyContent}
+                  submitReply={handleAddComment}
+                  level={1}
+                  navigate={navigate}
+                />
+              ))}
+            </div>
           )}
         </div>
 
@@ -645,6 +652,74 @@ const SeriesDetails = ({ user }) => {
         )}
 
       </div>
+    </div>
+  );
+};
+
+const SDCommentItem = ({ 
+  comment, allComments, user, onDelete, onReply, replyToId, 
+  replyContent, setReplyContent, submitReply, level, navigate
+}) => {
+  const replies = allComments.filter(r => r.parent_id === comment.comment_id);
+  const isOwner = user && (user.id === comment.user_id || user.user_id === comment.user_id);
+
+  return (
+    <div className={`sd-comment-thread-container sd-level-${level} ${level > 1 ? 'sd-nested' : ''}`}>
+      <div className="sd-comment-item">
+        <div className="sd-comment-avatar">
+          {comment.profile_picture ? <img src={comment.profile_picture} alt={comment.username} /> : '👤'}
+        </div>
+        <div className="sd-comment-bubble">
+          <div className="sd-comment-author">{comment.full_name || comment.username}</div>
+          <div className="sd-comment-text">{renderWithMentions(comment.content, navigate)}</div>
+          <div className="sd-comment-footer">
+            <span className="sd-comment-time">{timeAgo(comment.created_at)}</span>
+            {level < 3 && user && (
+              <button className="sd-comment-action-btn" onClick={() => onReply(comment.comment_id)}>Reply</button>
+            )}
+            {isOwner && (
+              <button className="sd-comment-action-btn sd-delete" onClick={() => onDelete(comment.comment_id)}>Delete</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {replyToId === comment.comment_id && (
+        <div className="sd-reply-form-inline">
+          <MentionInput
+            className="sd-comment-input small" 
+            placeholder={`Reply to ${comment.username}...`}
+            value={replyContent} 
+            onChange={v => setReplyContent(v)}
+            autoFocus
+          />
+          <div className="sd-reply-actions">
+            <button className="sd-reply-submit" onClick={() => submitReply(comment.comment_id)}>Post Reply</button>
+            <button className="sd-reply-cancel" onClick={() => onReply(null)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {replies.length > 0 && (
+        <div className="sd-replies-list">
+          {replies.map(r => (
+            <SDCommentItem 
+              key={r.comment_id}
+              comment={r}
+              allComments={allComments}
+              user={user}
+              onDelete={onDelete}
+              onReply={onReply}
+              replyToId={replyToId}
+              replyContent={replyContent}
+              setReplyContent={setReplyContent}
+              submitReply={submitReply}
+              level={level + 1}
+              navigate={navigate}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 };

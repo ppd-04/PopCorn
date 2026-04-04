@@ -51,6 +51,7 @@ function SocialFeed({ user }) {
     const [userInterests, setUserInterests]     = useState([]);
     const [communityStats, setCommunityStats]   = useState(null);
     const [activePoster, setActivePoster]       = useState(null);
+
     const navigate = useNavigate();
 
     // Helper to update background based on post content
@@ -394,6 +395,11 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments]         = useState([]);
     const [newComment, setNewComment]     = useState('');
+    
+    // Threading states
+    const [replyToId, setReplyToId]       = useState(null);
+    const [replyContent, setReplyContent] = useState('');
+
     const [showMenu, setShowMenu]         = useState(false);
     const [editing, setEditing]           = useState(false);
     const [editContent, setEditContent]   = useState(post.content);
@@ -420,14 +426,26 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
         } catch (err) { console.error(err); }
     };
 
-    const submitComment = async () => {
-        if (!newComment.trim() || !user) return;
+    const submitComment = async (pid = null) => {
+        const text = pid ? replyContent : newComment;
+        if (!text.trim() || !user) return;
+
         try {
             const res = await fetch(`${API_BASE}/posts/${post.post_id}/comments`, {
-                method: 'POST', headers: authHeaders(),
-                body: JSON.stringify({ content: newComment }),
+                method: 'POST', 
+                headers: authHeaders(),
+                body: JSON.stringify({ content: text, parent_id: pid }),
             });
-            if (res.ok) { setComments([...comments, await res.json()]); setNewComment(''); }
+            if (res.ok) { 
+                const created = await res.json();
+                setComments([...comments, created]); 
+                if (pid) {
+                    setReplyToId(null);
+                    setReplyContent('');
+                } else {
+                    setNewComment(''); 
+                }
+            }
         } catch (err) { console.error(err); }
     };
 
@@ -526,29 +544,26 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
 
             {showComments && (
                 <div className="comments-section">
-                    {comments.map(c => (
-                        <div key={c.comment_id} className="comment-item">
-                            <div className="comment-avatar">
-                                {c.profile_picture ? <img src={c.profile_picture} alt="Avatar" /> : c.username.charAt(0).toUpperCase()}
-                            </div>
-                            <div className="comment-bubble">
-                                <div className="comment-author">{c.username}</div>
-                                <div className="comment-text">{renderWithMentions(c.content, navigate)}</div>
-                                <div className="comment-meta">
-                                    <span className="comment-time">{timeAgo(c.created_at)}</span>
-                                    {user && (user.id === c.user_id || user.user_id === c.user_id) ? (
-                                        <button className="comment-delete-btn" onClick={async () => {
-                                            await fetch(`${API_BASE}/comments/${c.comment_id}`, { method: 'DELETE', headers: authHeaders() });
-                                            setComments(comments.filter(x => x.comment_id !== c.comment_id));
-                                        }}>Delete</button>
-                                    ) : (
-                                        <button className="comment-report-btn" onClick={() => handleReport(null, c.comment_id)}>Report</button>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
+                    {/* Render comments in 3 layers */}
+                    {comments.filter(c => !c.parent_id).map(c => (
+                        <CommentItem 
+                            key={c.comment_id}
+                            comment={c} 
+                            allComments={comments}
+                            user={user}
+                            onDelete={(id) => setComments(comments.filter(x => x.comment_id !== id))}
+                            onReply={setReplyToId}
+                            replyToId={replyToId}
+                            replyContent={replyContent}
+                            setReplyContent={setReplyContent}
+                            submitReply={submitComment}
+                            handleReport={handleReport}
+                            navigate={navigate}
+                            level={1}
+                        />
                     ))}
-                    {user && (
+
+                    {user && !replyToId && (
                         <div className="add-comment-form">
                             <MentionInput
                                 className="comment-input" 
@@ -557,9 +572,90 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
                                 onChange={v => setNewComment(v)}
                                 onKeyDown={e => e.key === 'Enter' && submitComment()}
                             />
-                            <button className="comment-submit-btn" disabled={!newComment.trim()} onClick={submitComment}>➤</button>
+                            <button className="comment-submit-btn" disabled={!newComment.trim()} onClick={() => submitComment()}>➤</button>
                         </div>
                     )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ─────────────────────────────────────────────────────
+// COMMENT ITEM COMPONENT (FOR THREADING)
+// ─────────────────────────────────────────────────────
+function CommentItem({ 
+    comment, allComments, user, onDelete, onReply, replyToId, 
+    replyContent, setReplyContent, submitReply, handleReport, navigate, level 
+}) {
+    const replies = allComments.filter(r => r.parent_id === comment.comment_id);
+    const isOwner = user && (user.id === comment.user_id || user.user_id === comment.user_id);
+
+    return (
+        <div className={`comment-thread-container level-${level}`}>
+            <div className="comment-item">
+                <div className="comment-avatar">
+                    {comment.profile_picture ? <img src={comment.profile_picture} alt="Avatar" /> : comment.username.charAt(0).toUpperCase()}
+                </div>
+                <div className="comment-bubble">
+                    <div className="comment-author">{comment.username}</div>
+                    <div className="comment-text">{renderWithMentions(comment.content, navigate)}</div>
+                    <div className="comment-meta">
+                        <span className="comment-time">{timeAgo(comment.created_at)}</span>
+                        {level < 3 && user && (
+                            <button className="comment-action-link" onClick={() => onReply(comment.comment_id)}>Reply</button>
+                        )}
+                        {isOwner ? (
+                            <button className="comment-action-link delete" onClick={async () => {
+                                if (window.confirm('Delete this comment?')) {
+                                    await fetch(`http://localhost:5000/api/comments/${comment.comment_id}`, { method: 'DELETE', headers: authHeaders() });
+                                    onDelete(comment.comment_id);
+                                }
+                            }}>Delete</button>
+                        ) : (
+                            <button className="comment-action-link" onClick={() => handleReport(null, comment.comment_id)}>Report</button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Inline reply form */}
+            {replyToId === comment.comment_id && (
+                <div className="reply-form-inline">
+                    <MentionInput
+                        className="comment-input small" 
+                        placeholder={`Reply to ${comment.username}...`}
+                        value={replyContent} 
+                        onChange={v => setReplyContent(v)}
+                        autoFocus
+                    />
+                    <div className="reply-form-actions">
+                        <button className="reply-submit-btn" onClick={() => submitReply(comment.comment_id)}>Reply</button>
+                        <button className="reply-cancel-btn" onClick={() => onReply(null)}>Cancel</button>
+                    </div>
+                </div>
+            )}
+
+            {/* Recursively render children if level < 3 */}
+            {replies.length > 0 && (
+                <div className="comment-replies-list">
+                    {replies.map(r => (
+                        <CommentItem 
+                            key={r.comment_id}
+                            comment={r} 
+                            allComments={allComments}
+                            user={user}
+                            onDelete={onDelete}
+                            onReply={onReply}
+                            replyToId={replyToId}
+                            replyContent={replyContent}
+                            setReplyContent={setReplyContent}
+                            submitReply={submitReply} // Pass functional reference down
+                            handleReport={handleReport}
+                            navigate={navigate}
+                            level={level + 1}
+                        />
+                    ))}
                 </div>
             )}
         </div>
