@@ -78,9 +78,9 @@ const MovieDetails = ({ user }) => {
     try {
       const res = await fetch(`${API_BASE}/movies/${id}/rating`, { headers: authHeaders() });
       const data = await res.json();
-      setAvgRating(data.avg_rating);
-      setTotalRatings(data.total_ratings);
-      setMyRating(data.my_rating);
+      if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
+      if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
+      if (data.my_rating !== undefined) setMyRating(Number(data.my_rating));
     } catch (err) { console.error('Failed to fetch rating:', err); }
   }, [id]);
 
@@ -143,8 +143,8 @@ const MovieDetails = ({ user }) => {
       if (res.ok) {
         const data = await res.json();
         setMyRating(data.my_rating);
-        setAvgRating(data.avg_rating);
-        setTotalRatings(data.total_ratings);
+        if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
+        if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
       }
     } catch (err) { console.error('Rate failed:', err); }
   };
@@ -301,7 +301,7 @@ const MovieDetails = ({ user }) => {
               <div className="md-rating-header">
                 <div className="md-avg-rating">
                   <span className="md-avg-number">
-                    {avgRating > 0 ? avgRating.toFixed(1) : (movie.vote_average ? movie.vote_average.toFixed(1) : '—')}
+                    {Number(avgRating || 0) > 0 ? Number(avgRating).toFixed(1) : (movie.vote_average ? Number(movie.vote_average).toFixed(1) : '—')}
                   </span>
                   <div className="md-avg-meta">
                     <span className="md-avg-label">IMDb Rating</span>

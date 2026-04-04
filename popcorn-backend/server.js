@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
@@ -155,6 +155,8 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
         try {
             text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
         } catch (_) { /* kichu na*/ }
+
+        let suggestedMovies = [];
 
         // --- SAFE QUERY ENFORCEMENT ---
         // NEW format: #GeminiMovies: movie1, movie2, movie3
@@ -374,7 +376,8 @@ app.post('/api/login', async (req, res) => {
                 phone_number: user.phone_number,
                 address: user.address,
                 profile_picture: user.profile_picture,
-                is_admin: user.is_admin
+                is_admin: user.is_admin,
+                is_super_admin: user.is_super_admin
             }
         });
 
@@ -1719,11 +1722,11 @@ app.get('/api/series/:id/rating', async (req, res) => {
             } catch (e) { }
         }
 
-        const statsRes = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE id = $1', [id]);
+        const statsRes = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE tmdb_id = $1', [id]);
         if (statsRes.rows.length > 0) {
             res.json({
-                avg_rating: statsRes.rows[0].vote_average,
-                total_ratings: statsRes.rows[0].vote_count,
+                avg_rating: parseFloat(statsRes.rows[0].vote_average || 0),
+                total_ratings: parseInt(statsRes.rows[0].vote_count || 0),
                 my_rating: myRating
             });
         } else {
@@ -1749,13 +1752,13 @@ app.post('/api/series/:id/rate', authenticateToken, async (req, res) => {
             [id, userId, rating]
         );
 
-        const result = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE id = $1', [id]);
+        const result = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE tmdb_id = $1', [id]);
 
         res.json({
             message: 'Rating saved successfully',
             my_rating: rating,
-            avg_rating: result.rows[0].vote_average,
-            total_ratings: result.rows[0].vote_count
+            avg_rating: parseFloat(result.rows[0]?.vote_average || 0),
+            total_ratings: parseInt(result.rows[0]?.vote_count || 0)
         });
     } catch (error) {
         console.error(error);
@@ -2002,10 +2005,7 @@ app.post('/api/friends/request/:id', authenticateToken, async (req, res) => {
         const revRes = await pool.query(`SELECT id FROM friend_requests WHERE requester_id = $1 AND receiver_id = $2`, [targetUserId, currentUserId]);
         if (fRes.rows.length > 0) {
             const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
-            await pool.query(
-                `INSERT INTO notifications (user_id, sender_id, type, message) VALUES ($1, $2, 'friend_request', $3)`,
-                [targetUserId, currentUserId, `${uRes.rows[0].username} sent you a friend request`]
-            );
+            await createNotification(targetUserId, currentUserId, 'friend_request', `${uRes.rows[0].username} sent you a friend request`);
         } else if (revRes.rows.length > 0) {
             return res.status(400).json({ error: 'Request already exists' });
         }
@@ -2029,10 +2029,7 @@ app.post('/api/friends/accept/:id', authenticateToken, async (req, res) => {
         );
         if (upd.rows.length > 0) {
             const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
-            await pool.query(
-                `INSERT INTO notifications (user_id, sender_id, type, message) VALUES ($1, $2, 'friend_accept', $3)`,
-                [requesterId, currentUserId, `${uRes.rows[0].username} accepted your friend request`]
-            );
+            await createNotification(requesterId, currentUserId, 'friend_accept', `${uRes.rows[0].username} accepted your friend request`);
             await pool.query(
                 `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND sender_id = $2 AND type = 'friend_request'`,
                 [currentUserId, requesterId]
@@ -2062,14 +2059,17 @@ app.post('/api/friends/reject/:id', authenticateToken, async (req, res) => {
 
 app.get('/api/notifications', authenticateToken, async (req, res) => {
     try {
+        const uId = req.user.userId || req.user.id || req.user.user_id;
+        console.log(`[Notifications] Fetching for UID: ${uId}`);
         const result = await pool.query(
             `SELECT n.*, u.username as sender_username, u.profile_picture as sender_picture
              FROM notifications n LEFT JOIN users u ON n.sender_id = u.user_id
              WHERE n.user_id = $1 ORDER BY n.created_at DESC LIMIT 50`,
-            [req.user.userId]
+            [uId]
         );
         res.json(result.rows);
     } catch (err) {
+        console.error('[Notifications] Fetch Error:', err);
         res.status(500).json({ error: 'Failed to fetch notifications' });
     }
 });
@@ -2319,6 +2319,57 @@ const logAdminActivity = async (adminId, actionType, targetEntity, targetId, det
     }
 };
 
+const createNotification = async (userId, senderId, type, message, relatedId = null) => {
+    try {
+        console.log(`[Notifications] Creating notif for UID: ${userId}, Type: ${type}`);
+        const res = await pool.query(
+            `INSERT INTO notifications (user_id, sender_id, type, message, related_id, created_at, is_read) 
+             VALUES ($1, $2, $3, $4, $5, NOW(), false) RETURNING *`,
+            [userId, senderId, type, message, relatedId]
+        );
+        
+        if (res.rows.length > 0) {
+            const newNotif = res.rows[0];
+            let senderInfo = { username: 'System', profile_picture: null };
+            if (senderId) {
+                const s = await pool.query('SELECT username, profile_picture FROM users WHERE user_id = $1', [senderId]);
+                if (s.rows.length > 0) senderInfo = s.rows[0];
+            }
+            
+            const payload = { 
+                ...newNotif, 
+                sender_username: senderInfo.username, 
+                sender_picture: senderInfo.profile_picture 
+            };
+            
+            // Emit to the user's private socket room
+            io.to(`user_${userId}`).emit('new_notification', payload);
+            console.log(`[Notifications] Real-time emit to user_${userId}`);
+        }
+    } catch (e) {
+        console.error('[Notifications] Creation Error:', e);
+    }
+};
+
+app.post('/api/social/report', authenticateToken, async (req, res) => {
+    const { post_id, comment_id, reason } = req.body;
+    const userId = req.user.userId;
+
+    if (!reason || reason.trim() === '') {
+        return res.status(400).json({ error: 'Reason is required' });
+    }
+
+    try {
+        await pool.query(
+            `INSERT INTO reports (reporter_id, post_id, comment_id, reason) VALUES ($1, $2, $3, $4)`,
+            [userId, post_id || null, comment_id || null, reason]
+        );
+        res.json({ success: true, message: 'Report submitted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to submit report' });
+    }
+});
+
 app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
     try {
         const result = await pool.query('SELECT user_id, username, email, is_admin, is_super_admin, banned_until FROM users ORDER BY user_id DESC');
@@ -2331,15 +2382,32 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        const target = await pool.query('SELECT is_super_admin, email FROM users WHERE user_id = $1', [id]);
-        if (target.rows.length > 0 && target.rows[0].is_super_admin) {
+        const target = await pool.query('SELECT is_admin, is_super_admin, email FROM users WHERE user_id = $1', [id]);
+        if (target.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        
+        const targetUser = target.rows[0];
+        if (targetUser.is_super_admin) {
             return res.status(403).json({ error: 'Cannot modify SuperAdmin.' });
+        }
+
+        // Standard admins can't demote admins
+        if (targetUser.is_admin && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Only SuperAdmin can demote an Admin.' });
         }
         
         const result = await pool.query('UPDATE users SET is_admin = NOT is_admin WHERE user_id = $1 RETURNING is_admin, email', [id]);
         const newState = result.rows[0].is_admin;
         
         await logAdminActivity(req.user.userId, newState ? 'MAKE_ADMIN' : 'REVOKE_ADMIN', 'users', id, `Changed admin status to ${newState} for ${result.rows[0].email}`);
+        
+        // Notify user
+        const adminRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [req.user.userId]);
+        const adminName = adminRes.rows[0].username;
+        const message = newState 
+            ? `Administrator ${adminName} has promoted you to a role with Administrator privileges. Welcome to the team!` 
+            : `Your Administrator privileges have been revoked by ${adminName}. If you have questions, please contact the SuperAdmin.`;
+        await createNotification(id, req.user.userId, 'SYSTEM', message);
+        
         res.json({ success: true, is_admin: newState });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -2348,38 +2416,52 @@ app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
 
 app.put('/api/admin/users/:id/ban', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
-    const { durationMs } = req.body; 
+    const { durationMs, reason } = req.body; 
     try {
-        const target = await pool.query('SELECT is_admin, email FROM users WHERE user_id = $1', [id]);
-        if (target.rows.length > 0 && target.rows[0].is_admin && !req.user.isSuperAdmin) {
-            return res.status(403).json({ error: 'Only SuperAdmins can ban an Admin.' });
+        const target = await pool.query('SELECT is_admin, email, banned_until FROM users WHERE user_id = $1', [id]);
+        if (target.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        
+        const targetUser = target.rows[0];
+        
+        // Don't let standard admins ban other admins
+        if (targetUser.is_admin && !req.user.isSuperAdmin) {
+            return res.status(403).json({ error: 'Only SuperAdmin can ban an Admin.' });
         }
 
+        // Toggle logic
+        const currentlyBanned = targetUser.banned_until && new Date(targetUser.banned_until) > new Date();
+        
         let banUntil = null;
-        let pDuration = 'PERMANENT';
-        if (durationMs) {
-            banUntil = new Date(Date.now() + durationMs);
-            pDuration = durationMs === 86400000 ? '24 Hours' : `${durationMs}ms`;
-        } else {
-            banUntil = new Date('3000-01-01T00:00:00Z'); // effectively permanent
+        let action = 'UNBAN_USER';
+        let detailMsg = `Unbanned user ${targetUser.email}`;
+
+        if (!currentlyBanned) {
+            action = 'BAN_USER';
+            let pDuration = 'PERMANENT';
+            if (durationMs) {
+                banUntil = new Date(Date.now() + durationMs);
+                pDuration = durationMs === 86400000 ? '24 Hours' : `${durationMs}ms`;
+            } else {
+                banUntil = new Date('3000-01-01T00:00:00Z');
+            }
+            detailMsg = `Banned user ${targetUser.email} for: ${pDuration}. Reason: ${reason || 'Not specified'}`;
         }
 
         await pool.query('UPDATE users SET banned_until = $1 WHERE user_id = $2', [banUntil, id]);
-        await logAdminActivity(req.user.userId, 'BAN_USER', 'users', id, `Banned user ${target.rows[0].email} for duration: ${pDuration}`);
+        await logAdminActivity(req.user.userId, action, 'users', id, detailMsg);
+        
+        // Notify user
+        const adminRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [req.user.userId]);
+        const adminName = adminRes.rows[0].username;
+        
+        if (!currentlyBanned) {
+            const reasonMsg = reason ? ` Reason: ${reason}` : ' Policy violation.';
+            await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been banned by ${adminName}.${reasonMsg}`);
+        } else {
+            await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been unbanned by ${adminName}. Welcome back!`);
+        }
         
         res.json({ success: true, banned_until: banUntil });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.put('/api/admin/users/:id/unban', authenticateAdmin, async (req, res) => {
-    const { id } = req.params;
-    try {
-        const target = await pool.query('SELECT email FROM users WHERE user_id = $1', [id]);
-        await pool.query('UPDATE users SET banned_until = NULL WHERE user_id = $1', [id]);
-        await logAdminActivity(req.user.userId, 'UNBAN_USER', 'users', id, `Unbanned user ${target.rows[0]?.email}`);
-        res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -2460,6 +2542,13 @@ app.post('/api/admin/people', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/posts/:id', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
+        // Fetch author before deleting
+        const post = await pool.query('SELECT user_id, content FROM social_posts WHERE post_id = $1', [id]);
+        if (post.rows.length > 0) {
+            const authorId = post.rows[0].user_id;
+            const preview = post.rows[0].content.substring(0, 30) + '...';
+            await createNotification(authorId, req.user.userId, 'SYSTEM', `An administrator has removed your post: "${preview}" for violating community standards.`);
+        }
         await pool.query('DELETE FROM social_posts WHERE post_id = $1', [id]);
         await logAdminActivity(req.user.userId, 'DELETE_POST', 'social_posts', id, `Deleted post ${id}`);
         res.json({ success: true });
@@ -2471,6 +2560,13 @@ app.delete('/api/admin/posts/:id', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/comments/:id', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
+        // Fetch author before deleting
+        const comment = await pool.query('SELECT user_id, content FROM post_comments WHERE comment_id = $1', [id]);
+        if (comment.rows.length > 0) {
+            const authorId = comment.rows[0].user_id;
+            const preview = comment.rows[0].content.substring(0, 30) + '...';
+            await createNotification(authorId, req.user.userId, 'SYSTEM', `An administrator has removed your comment: "${preview}" for violating community standards.`);
+        }
         await pool.query('DELETE FROM post_comments WHERE comment_id = $1', [id]);
         await logAdminActivity(req.user.userId, 'DELETE_COMMENT', 'post_comments', id, `Deleted comment ${id}`);
         res.json({ success: true });
@@ -2486,6 +2582,29 @@ app.get('/api/admin/logs', authenticateAdmin, async (req, res) => {
             FROM admin_activity_logs a
             LEFT JOIN users u ON u.user_id = a.admin_id
             ORDER BY a.created_at DESC LIMIT 100
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT r.*, 
+                   u.username as reporter_username,
+                   p.content as post_content,
+                   c.content as comment_content,
+                   p_user.username as post_author,
+                   c_user.username as comment_author
+            FROM reports r
+            JOIN users u ON u.user_id = r.reporter_id
+            LEFT JOIN social_posts p ON p.post_id = r.post_id
+            LEFT JOIN post_comments c ON c.comment_id = r.comment_id
+            LEFT JOIN users p_user ON p_user.user_id = p.user_id
+            LEFT JOIN users c_user ON c_user.user_id = c.user_id
+            ORDER BY r.created_at DESC
         `);
         res.json(result.rows);
     } catch (err) {

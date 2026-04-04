@@ -96,9 +96,9 @@ const SeriesDetails = ({ user }) => {
       const res = await fetch(`${API_BASE}/series/${id}/rating`, { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
-        if (data.avg_rating) setAvgRating(data.avg_rating);
-        if (data.total_ratings) setTotalRatings(data.total_ratings);
-        if (data.my_rating) setMyRating(data.my_rating);
+        if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
+        if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
+        if (data.my_rating !== undefined) setMyRating(Number(data.my_rating));
       }
     } catch (err) { /* API may not exist yet, will use Supabase data */ }
   }, [id]);
@@ -180,8 +180,8 @@ const SeriesDetails = ({ user }) => {
       if (res.ok) {
         const data = await res.json();
         setMyRating(data.my_rating || rating);
-        if (data.avg_rating) setAvgRating(data.avg_rating);
-        if (data.total_ratings) setTotalRatings(data.total_ratings);
+        if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
+        if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
       }
     } catch (err) { console.error('Rate failed:', err); }
   };
@@ -351,7 +351,7 @@ const SeriesDetails = ({ user }) => {
               <div className="sd-rating-header">
                 <div className="sd-avg-rating">
                   <span className="sd-avg-number">
-                    {avgRating > 0 ? avgRating.toFixed(1) : '—'}
+                    {Number(avgRating || 0) > 0 ? Number(avgRating).toFixed(1) : '—'}
                   </span>
                   <div className="sd-avg-meta">
                     <span className="sd-avg-label">Rating</span>
