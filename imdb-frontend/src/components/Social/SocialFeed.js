@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { renderWithMentions } from '../../utils/MentionsUtil';
+import { renderWithMentions, getFirstMention } from '../../utils/MentionsUtil';
 import MentionInput from './MentionInput';
+import CinemaBackground from './CinemaBackground';
 import { supabase } from '../../supabaseClient';
 import SuggestedFriends from './SuggestedFriends';
 import './Social.css';
@@ -49,15 +50,42 @@ function SocialFeed({ user }) {
     const [userStats, setUserStats]             = useState(null);
     const [userInterests, setUserInterests]     = useState([]);
     const [communityStats, setCommunityStats]   = useState(null);
+    const [activePoster, setActivePoster]       = useState(null);
     const navigate = useNavigate();
+
+    // Helper to update background based on post content
+    const updateBackground = useCallback(async (content) => {
+        const mention = getFirstMention(content);
+        if (mention) {
+            try {
+                const res = await fetch(`${API_BASE}/movies/mention/resolve?id=${mention.id}&type=${mention.type}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.poster_path) setActivePoster(data.poster_path);
+                }
+            } catch (err) { console.error("BG update error", err); }
+        }
+    }, []);
 
     const fetchPosts = useCallback(async () => {
         try {
             const res = await fetch(`${API_BASE}/posts`, { headers: authHeaders() });
-            if (res.ok) setPosts(await res.json());
+            if (res.ok) {
+                const data = await res.json();
+                setPosts(data);
+                
+                // Set initial background from first mention found in feed
+                for (let p of data) {
+                    const m = getFirstMention(p.content);
+                    if (m) {
+                        updateBackground(p.content);
+                        break;
+                    }
+                }
+            }
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
-    }, []);
+    }, [updateBackground]);
 
     const fetchDiscussions = useCallback(async () => {
         try {
@@ -91,7 +119,10 @@ function SocialFeed({ user }) {
         if (user) { fetchDiscussions(); fetchUserStats(); }
     }, [fetchPosts, fetchDiscussions, fetchUserStats, fetchCommunityStats, user]);
 
-    const handlePostCreated = (p)          => setPosts([p, ...posts]);
+    const handlePostCreated = (p) => {
+        setPosts([p, ...posts]);
+        updateBackground(p.content);
+    };
     const handlePostUpdated = (upd)        => setPosts(posts.map(p => p.post_id === upd.post_id ? { ...p, ...upd } : p));
     const handlePostDeleted = (id)         => setPosts(posts.filter(p => p.post_id !== id));
     const handleLikeToggled = (id, l, c)  => setPosts(posts.map(p => p.post_id === id ? { ...p, liked_by_me: l, like_count: c } : p));
@@ -100,6 +131,7 @@ function SocialFeed({ user }) {
 
     return (
         <div className="social-page layout-3-col">
+            <CinemaBackground posterPath={activePoster} />
             <div className="social-container-main">
 
                 {/* ══ LEFT COLUMN ══ */}

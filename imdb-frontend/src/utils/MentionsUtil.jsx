@@ -141,3 +141,17 @@ export function renderWithMentions(text, navigate) {
 
   return parts;
 }
+
+/**
+ * Extracts the first structured mention from text.
+ * Used for dynamic cinematic background updates.
+ */
+export function getFirstMention(text) {
+  if (!text) return null;
+  const structuredRegex = /@\[([^\]]+)\]\((movie|series):(\d+)\)/;
+  const match = text.match(structuredRegex);
+  if (match) {
+    return { title: match[1], type: match[2], id: match[3] };
+  }
+  return null;
+}

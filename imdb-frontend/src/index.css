@@ -12,8 +12,13 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0a0a;
+  background: #0a0a0a; /* Restored global dark background */
   color: #ffffff;
+}
+
+#root {
+  min-height: 100vh;
+  background: #0a0a0a;
 }
 
 code {

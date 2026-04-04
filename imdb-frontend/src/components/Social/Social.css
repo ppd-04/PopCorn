@@ -8,23 +8,14 @@
 .social-page {
   padding-top: 80px;
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(245, 197, 24, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 90% 80%, rgba(167, 139, 250, 0.05) 0%, transparent 50%),
-    linear-gradient(170deg, #080810 0%, #0d0d1a 40%, #0a0a0f 100%);
+  background: #0a0a0a; /* Base dark background for social hub */
   position: relative;
   overflow-x: clip;
 }
 
-/* Grain texture overlay */
+/* Grain texture overlay (integrated into background logic or moved to lower layer) */
 .social-page::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 0;
-  opacity: 0.6;
+  display: none; /* Disabling the old grain to prevent occlusion */
 }
 
 .layout-3-col {
@@ -40,7 +31,12 @@
   margin: 0 auto;
   padding: 28px 28px 60px;
   position: relative;
-  z-index: 1;
+  z-index: 2; /* Content sits above the CinemaBackground (z-index: 0) */
+}
+
+.social-left-col, .social-right-col {
+  z-index: 10; /* Keep sidebars above feed content animations */
+  position: relative;
 }
 
 @media (max-width: 1280px) {
@@ -475,7 +471,7 @@
 
 .mention-suggestions-container {
   position: absolute;
-  z-index: 10000;
+  z-index: 999999; /* Ultra high z-index to stay above feed */
   background: rgba(15, 15, 25, 0.98);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
@@ -575,6 +571,8 @@
   backdrop-filter: blur(20px);
   box-shadow: 0 4px 24px rgba(0,0,0,0.3);
   transition: border-color 0.3s ease;
+  position: relative;
+  z-index: 100; /* High z-index to keep suggestions above following posts */
 }
 
 .create-post-card:focus-within {
@@ -1588,6 +1586,36 @@
 .messenger-input-area button:hover {
   transform: translateY(-1px);
   box-shadow: 0 4px 14px rgba(245, 197, 24, 0.35);
+}
+
+/* ── Cinema Background ── */
+.cinema-background-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 0; /* Above the base social-page background, below the content */
+  background-color: #030308;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cinema-bg-layer {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 2s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: scale(1.1);
+  opacity: 1; /* Ensure visible */
+}
+
+.cinema-bg-overlay {
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(40px) brightness(0.5); /* Slightly brighter for visibility */
+  -webkit-backdrop-filter: blur(40px) brightness(0.5);
+  background: 
+    linear-gradient(to bottom, rgba(0,0,0,0.5), rgba(0,0,0,0.8)),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
 }
 
 /* ── Rich Mention Editor (contenteditable) ── */
