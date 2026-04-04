@@ -11,7 +11,11 @@ import ProfilePage from './components/Profile/ProfilePage';
 import ChatPanel from './components/Chat/ChatPanel';
 import AdminDashboard from './components/Admin/AdminDashboard';
 import BrowsePage from './components/Browse/BrowsePage';
-
+import SeriesPage from './components/Series/SeriesPage';
+import Celebrities from './components/celebrities/celebrities';
+import PublicProfile from './components/User/PublicProfile';
+import PeopleSearch from './components/Social/PeopleSearch';
+import DiscussionRoom from './components/Social/DiscussionRoom';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
@@ -204,6 +208,12 @@ function App() {
             {/* THIS IS THE NEW SOCIAL FEED ROUTE */}
             <Route path="/social" element={<SocialFeed user={user} />} />
 
+            <Route path="/series" element={<SeriesPage />} />
+            <Route path="/celebrities" element={<Celebrities />} />
+            
+            <Route path="/user/:id" element={<PublicProfile currentUser={user} />} />
+            <Route path="/people" element={<PeopleSearch />} />
+
             {/* PROFILE PAGE ROUTE */}
             <Route path="/profile" element={
               <ProtectedRoute>
@@ -229,6 +239,9 @@ function App() {
                 </div>
               </ProtectedRoute>
             } />
+
+            <Route path="/series" element={<SeriesPage/>}/>
+            <Route path="/social/discussion/:id" element={<DiscussionRoom user={user} />} />
           </Routes>
 
           <footer className="footer">

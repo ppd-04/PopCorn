@@ -4,8 +4,12 @@ const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const http = require('http');
+const { Server } = require('socket.io');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
 // app hocche web server. pore app.something() kora hobe
 
 // cors mane cross origin resource sharing, frontend backend er moddhe connection kore
@@ -1598,8 +1602,358 @@ app.get('/api/genres', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+app.get('/api/series/top', async (req, res) => {
+    try {
+        const result = await pool.query('select * from serieses limit 1');
+        if (result.rows.length > 0) {
+            res.json(result.rows[0]);
+        }
+        else {
+            res.status(404).json({ error: 'kisui pailam na' });
+        }
+    }
+    catch (error) {
+        console.error("cant find", error);
+        res.status(500).json({ error: 'server error' });
+    }
 });
 
-// ovvai
+// ==========================================
+// FRIENDS & PROFILE ROUTES
+// ==========================================
+
+app.get('/api/users/search', async (req, res) => {
+    const q = req.query.q || '';
+    if (!q.trim()) return res.json([]);
+    try {
+        const query = `
+            SELECT user_id, username, full_name, profile_picture 
+            FROM users 
+            WHERE username ILIKE $1 OR full_name ILIKE $1 
+            LIMIT 20
+        `;
+        const result = await pool.query(query, [`%${q}%`]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Search failed' });
+    }
+});
+
+app.get('/api/users/:id/profile', optionalAuthenticate, async (req, res) => {
+    const targetUserId = req.params.id;
+    const currentUserId = req.user ? req.user.userId : null;
+    try {
+        const userRes = await pool.query(
+            'SELECT user_id, username, full_name, profile_picture, date_joined FROM users WHERE user_id = $1',
+            [targetUserId]
+        );
+        if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+        
+        let friendStatus = 'none';
+        let actionUserId = null;
+        if (currentUserId && currentUserId !== parseInt(targetUserId)) {
+            const fRes = await pool.query(
+                `SELECT status, requester_id FROM friend_requests 
+                 WHERE (requester_id = $1 AND receiver_id = $2) 
+                    OR (requester_id = $2 AND receiver_id = $1)`,
+                [currentUserId, targetUserId]
+            );
+            if (fRes.rows.length > 0) {
+                friendStatus = fRes.rows[0].status;
+                actionUserId = fRes.rows[0].requester_id;
+            }
+        }
+        res.json({ ...userRes.rows[0], friendStatus, actionUserId });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to load profile' });
+    }
+});
+
+app.get('/api/users/:id/posts', optionalAuthenticate, async (req, res) => {
+    // Current user can see if they've liked posts
+    const currentUserId = req.user ? req.user.userId : null;
+    try {
+        const query = `
+            SELECT sp.*, u.username, u.full_name, u.profile_picture,
+                   (SELECT COUNT(*) FROM post_likes WHERE post_id = sp.post_id) AS like_count,
+                   (SELECT COUNT(*) FROM post_comments WHERE post_id = sp.post_id) AS comment_count,
+                   CASE WHEN $2::int IS NOT NULL AND EXISTS(SELECT 1 FROM post_likes WHERE post_id = sp.post_id AND user_id = $2) THEN true ELSE false END AS liked_by_me
+            FROM social_posts sp
+            JOIN users u ON sp.user_id = u.user_id
+            WHERE sp.user_id = $1
+            ORDER BY sp.created_at DESC
+        `;
+        const result = await pool.query(query, [req.params.id, currentUserId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch posts' });
+    }
+});
+
+app.post('/api/friends/request/:id', authenticateToken, async (req, res) => {
+    const targetUserId = req.params.id;
+    const currentUserId = req.user.userId;
+    if (currentUserId == targetUserId) return res.status(400).json({ error: 'Cannot add yourself' });
+    try {
+        await pool.query('BEGIN');
+        const fRes = await pool.query(
+            `INSERT INTO friend_requests (requester_id, receiver_id, status)
+             VALUES ($1, $2, 'pending')
+             ON CONFLICT (requester_id, receiver_id) DO NOTHING RETURNING id`,
+            [currentUserId, targetUserId]
+        );
+        const revRes = await pool.query(`SELECT id FROM friend_requests WHERE requester_id = $1 AND receiver_id = $2`, [targetUserId, currentUserId]);
+        if (fRes.rows.length > 0) {
+            const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
+            await pool.query(
+                `INSERT INTO notifications (user_id, sender_id, type, message) VALUES ($1, $2, 'friend_request', $3)`,
+                [targetUserId, currentUserId, `${uRes.rows[0].username} sent you a friend request`]
+            );
+        } else if (revRes.rows.length > 0) {
+           return res.status(400).json({ error: 'Request already exists' });
+        }
+        await pool.query('COMMIT');
+        res.json({ message: 'Request sent' });
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        res.status(500).json({ error: 'Action failed' });
+    }
+});
+
+app.post('/api/friends/accept/:id', authenticateToken, async (req, res) => {
+    const requesterId = req.params.id;
+    const currentUserId = req.user.userId;
+    try {
+        await pool.query('BEGIN');
+        const upd = await pool.query(
+            `UPDATE friend_requests SET status = 'accepted', updated_at = NOW() 
+             WHERE requester_id = $1 AND receiver_id = $2 RETURNING id`,
+            [requesterId, currentUserId]
+        );
+        if (upd.rows.length > 0) {
+             const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
+             await pool.query(
+                 `INSERT INTO notifications (user_id, sender_id, type, message) VALUES ($1, $2, 'friend_accept', $3)`,
+                 [requesterId, currentUserId, `${uRes.rows[0].username} accepted your friend request`]
+             );
+             await pool.query(
+                 `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND sender_id = $2 AND type = 'friend_request'`,
+                 [currentUserId, requesterId]
+             );
+        }
+        await pool.query('COMMIT');
+        res.json({ message: 'Accepted' });
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        res.status(500).json({ error: 'Accept failed' });
+    }
+});
+
+app.post('/api/friends/reject/:id', authenticateToken, async (req, res) => {
+    const targetUserId = req.params.id;
+    const currentUserId = req.user.userId;
+    try {
+        await pool.query(
+            `DELETE FROM friend_requests WHERE (requester_id = $1 AND receiver_id = $2) OR (requester_id = $2 AND receiver_id = $1)`,
+            [currentUserId, targetUserId]
+        );
+        res.json({ message: 'Removed' });
+    } catch (err) {
+        res.status(500).json({ error: 'Reject failed' });
+    }
+});
+
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT n.*, u.username as sender_username, u.profile_picture as sender_picture
+             FROM notifications n LEFT JOIN users u ON n.sender_id = u.user_id
+             WHERE n.user_id = $1 ORDER BY n.created_at DESC LIMIT 50`,
+            [req.user.userId]
+        );
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch notifications' });
+    }
+});
+
+app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
+    try {
+        await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to mark read' });
+    }
+});
+
+// ==========================================
+// DIRECT MESSAGES & DISCUSSIONS REST APIs
+// ==========================================
+
+// Get a list of friends for the DM sidebar (plus latest message info if possible, simplified for now to just friends)
+app.get('/api/messages/friends', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT u.user_id, u.username, u.full_name, u.profile_picture 
+            FROM friend_requests f
+            JOIN users u ON (f.requester_id = u.user_id OR f.receiver_id = u.user_id)
+            WHERE f.status = 'accepted' 
+              AND (f.requester_id = $1 OR f.receiver_id = $1)
+              AND u.user_id != $1
+        `, [req.user.userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch friends' });
+    }
+});
+
+// Get chat history with a specific user
+app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT * FROM direct_messages 
+            WHERE (sender_id = $1 AND receiver_id = $2) 
+               OR (sender_id = $2 AND receiver_id = $1)
+            ORDER BY created_at ASC
+            LIMIT 200
+        `, [req.user.userId, req.params.userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+});
+
+// Discussions feed
+app.get('/api/discussions/feed', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT d.*, u.username as creator_username, m.title as movie_title, m.poster_path
+            FROM discussions d
+            JOIN users u ON d.creator_id = u.user_id
+            LEFT JOIN movies m ON d.movie_id = m.movie_id
+            WHERE d.access_level = 'public' 
+               OR d.creator_id = $1 
+               OR EXISTS (SELECT 1 FROM discussion_participants dp WHERE dp.discussion_id = d.id AND dp.user_id = $1)
+            ORDER BY d.created_at DESC
+            LIMIT 50
+        `, [req.user.userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch discussions feed' });
+    }
+});
+
+// Create discussion
+app.post('/api/discussions', authenticateToken, async (req, res) => {
+    const { movie_id, title, access_level, max_participants } = req.body;
+    try {
+        await pool.query('BEGIN');
+        const dRes = await pool.query(`
+            INSERT INTO discussions (creator_id, movie_id, title, access_level, max_participants)
+            VALUES ($1, $2, $3, $4, $5) RETURNING *
+        `, [req.user.userId, movie_id || null, title, access_level || 'public', max_participants || null]);
+        
+        const newGroup = dRes.rows[0];
+        // Add creator as admin
+        await pool.query(`INSERT INTO discussion_participants (discussion_id, user_id, role) VALUES ($1, $2, 'admin')`, [newGroup.id, req.user.userId]);
+        await pool.query('COMMIT');
+        res.json(newGroup);
+    } catch (err) {
+        await pool.query('ROLLBACK');
+        res.status(500).json({ error: 'Failed to create discussion' });
+    }
+});
+
+// Get specific discussion and its messages
+app.get('/api/discussions/:id', authenticateToken, async (req, res) => {
+    try {
+        const dRes = await pool.query(`
+            SELECT d.*, m.title as movie_title, m.poster_path 
+            FROM discussions d LEFT JOIN movies m ON d.movie_id = m.movie_id WHERE id = $1
+        `, [req.params.id]);
+        if (dRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
+        
+        const msgRes = await pool.query(`
+            SELECT dm.*, u.username as sender_username, u.profile_picture as sender_picture 
+            FROM discussion_messages dm
+            JOIN users u ON dm.sender_id = u.user_id
+            WHERE dm.discussion_id = $1
+            ORDER BY dm.created_at ASC LIMIT 100
+        `, [req.params.id]);
+        
+        res.json({ discussion: dRes.rows[0], messages: msgRes.rows });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch discussion' });
+    }
+});
+
+// ==========================================
+// SOCKET.IO REAL-TIME CHAT
+// ==========================================
+io.on('connection', (socket) => {
+    console.log('A user connected via WebSocket:', socket.id);
+    
+    // Auth & Room joining
+    socket.on('join_user', (userId) => {
+        if (userId) socket.join(`user_${userId}`);
+    });
+
+    socket.on('join_discussion', (discussionId) => {
+        if (discussionId) socket.join(`discussion_${discussionId}`);
+    });
+
+    // Chat handling
+    socket.on('send_dm', async (data) => {
+        // data: { sender_id, receiver_id, message }
+        try {
+            const res = await pool.query(
+                'INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES ($1, $2, $3) RETURNING *',
+                [data.sender_id, data.receiver_id, data.message]
+            );
+            const msg = res.rows[0];
+            // Broadcast to the receiver and sender so both UI updates instantly
+            io.to(`user_${data.receiver_id}`).emit('receive_dm', msg);
+            io.to(`user_${data.sender_id}`).emit('receive_dm', msg);
+        } catch (err) {
+            console.error('DM Error:', err);
+        }
+    });
+
+    socket.on('send_discussion_msg', async (data) => {
+        // data: { discussion_id, sender_id, message }
+        try {
+            // First check if user is in participant list or if it's public
+            const discussionRes = await pool.query('SELECT access_level FROM discussions WHERE id = $1', [data.discussion_id]);
+            if(discussionRes.rows.length === 0) return;
+            // Simplified for now - assume they have access to send if they are physically there
+            
+            const res = await pool.query(
+                `INSERT INTO discussion_messages (discussion_id, sender_id, message) VALUES ($1, $2, $3) RETURNING *`,
+                [data.discussion_id, data.sender_id, data.message]
+            );
+            const msg = res.rows[0];
+            
+            // fetch sender details for ui
+            const userRes = await pool.query('SELECT username, profile_picture FROM users WHERE user_id = $1', [data.sender_id]);
+            if (userRes.rows.length > 0) {
+                msg.sender_username = userRes.rows[0].username;
+                msg.sender_picture = userRes.rows[0].profile_picture;
+            }
+
+            io.to(`discussion_${data.discussion_id}`).emit('receive_discussion_msg', msg);
+        } catch(err) {
+            console.error('Discussion Msg Error:', err);
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('A user disconnected:', socket.id);
+    });
+});
+
+server.listen(PORT, () => {
+    console.log("Server is running on http://localhost:" + PORT);
+});
