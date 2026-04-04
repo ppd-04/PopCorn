@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'; // ---> CHANGED: Added useState, useEffect, useRef <---
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
 import NotificationsDropdown from './components/Navbar/NotificationsDropdown';
@@ -6,12 +6,10 @@ import MessengerPanel from './components/Social/MessengerPanel';
 
 const API_BASE = 'http://localhost:5000/api';
 
-function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) {
+function Navbar({ user, onLogout, onLoginClick, onSearch }) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
-
-  const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const navigate = useNavigate();
 
   // Search suggestions state
@@ -32,8 +30,8 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
 
   const clampPos = (x, y) => {
     const pad = 12;
-    const tooltipW = 320; // match CSS width
-    const tooltipH = 180; // approximate height; will safely clamp
+    const tooltipW = 320;
+    const tooltipH = 180;
     const maxX = Math.max(pad, window.innerWidth - tooltipW - pad);
     const maxY = Math.max(pad, window.innerHeight - tooltipH - pad);
     return {
@@ -57,7 +55,6 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
         setSuggestions(Array.isArray(data) ? data : []);
       } catch (e) {
         setSuggestions([]);
-        // silent fail for UX
       }
     }, 200);
 
@@ -106,17 +103,15 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
     }
   };
 
-
   const goToProfileTab = (tab) => {
-    setIsProfileDropdownOpen(false);
     navigate(`/profile?tab=${tab}`);
   };
 
   return (
-    <> {/* ---> ADDED: Fragment wrapper to hold both the nav and the sidebar <--- */}
-    <nav className={`navbar ${theme}`}>
+    <>
+    <nav className="navbar">
       
-      {/* ---> ADDED: The Hamburger Icon <--- */}
+      {/* Hamburger Icon */}
       <div 
         className="navbar__hamburger" 
         onClick={() => setIsMenuOpen(true)} 
@@ -144,7 +139,7 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
           ref={inputRef}
         />
         {showSuggestions && suggestions.length > 0 && (
-          <ul className={`search-suggestions ${theme}`} ref={dropdownRef}>
+          <ul className="search-suggestions" ref={dropdownRef}>
             {suggestions.map((s, idx) => {
               const poster = s.poster_path
                 ? (s.poster_path.startsWith('http') ? s.poster_path : (s.poster_path.startsWith('/') ? `https://image.tmdb.org/t/p/w92${s.poster_path}` : s.poster_path))
@@ -155,14 +150,13 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
               const year = s.release_date ? new Date(s.release_date).getFullYear() : '';
               const rating = typeof s.avg_rating === 'number' ? s.avg_rating.toFixed(1) : null;
               const count = typeof s.rating_count === 'number' ? s.rating_count : null;
-              const SHOW_DELAY = 450; // ms (typical UX range: 350–500)
+              const SHOW_DELAY = 450;
               const HIDE_DELAY = 120;
               const handleEnter = (e) => {
                 setHighlighted(idx);
                 setHoverIndex(idx);
                 if (hideTimerRef.current) { clearTimeout(hideTimerRef.current); hideTimerRef.current = null; }
                 if (showTimerRef.current) clearTimeout(showTimerRef.current);
-                // Show immediately and position near the pointer
                 const base = clampPos(e.clientX + 12, e.clientY + 12);
                 setTooltipPos(base);
                 showTimerRef.current = setTimeout(() => {
@@ -171,7 +165,7 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
                 }, SHOW_DELAY);
               };
               const handleMove = (e) => {
-                if (hoverIndex === idx||tooltipIndex === idx) {
+                if (hoverIndex === idx || tooltipIndex === idx) {
                   const pos = clampPos(e.clientX + 12, e.clientY + 12);
                   setTooltipPos(pos);
                 }
@@ -179,7 +173,6 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
               const handleLeave = () => {
                 setHoverIndex(-1);
                 if (showTimerRef.current) { clearTimeout(showTimerRef.current); showTimerRef.current = null; }
-                if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
                 if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
                 hideTimerRef.current = setTimeout(() => {
                   setTooltipIndex((t) => (t === idx ? -1 : t));
@@ -209,10 +202,9 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
                       <div className="suggestion-sub">Movie{year ? ` • ${year}` : ''}</div>
                     </div>
 
-                    {/* Hover tooltip (positioned at pointer) */}
                     {tooltipIndex === idx && (
                       <div
-                        className={`suggestion-tooltip show`}
+                        className="suggestion-tooltip show"
                         style={{ position: 'fixed', left: `${tooltipPos.x}px`, top: `${tooltipPos.y}px` }}
                       >
                         <div className="tooltip-row">
@@ -240,7 +232,6 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
                         </div>
                       </div>
                     )}
-
                   </div>
                 </li>
               );
@@ -260,32 +251,20 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
         </Link>
         <Link to="/social" style={{ textDecoration: 'none', color: 'inherit' }}><span>Social</span></Link>
         
-        {/* Theme Toggle */}
-        <span className="nav-link" onClick={toggleTheme} style={{ cursor: 'pointer' }}>
-          {theme === 'dark' ? '☀️' : '🌙'}
-        </span>
-        
         {user ? (
           <>
             <span className="nav-link" onClick={() => setIsMessengerOpen(true)} style={{ cursor: 'pointer' }}>💬</span>
-            <NotificationsDropdown theme={theme} />
+            <NotificationsDropdown />
             <div className="profile-menu-container">
-            
-            {/* The Avatar (Clickable Trigger) */}
-            <div 
-              className="profile-avatar"
-              onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
-            >
-              {/* Shows profile pic or first letter */}
-              {user.profile_picture ? (
-                <img src={user.profile_picture} alt={user.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
-              ) : (
-                user.username.charAt(0).toUpperCase()
-              )}
-            </div>
+              <div className="profile-avatar">
+                {user.profile_picture ? (
+                  <img src={user.profile_picture} alt={user.username} style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} />
+                ) : (
+                  user.username.charAt(0).toUpperCase()
+                )}
+              </div>
 
-            {/* The Dropdown Menu */}
-            {isProfileDropdownOpen && (
+              {/* Hover-based dropdown */}
               <div className="dropdown-menu">
                 <ul>
                   <li onClick={() => goToProfileTab('overview')}>👤 Profile</li>
@@ -297,20 +276,17 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
                   <li onClick={() => goToProfileTab('interests')}>🎭 Interests</li>
                   <li onClick={() => goToProfileTab('settings')}>⚙️ Settings</li>
                   {user.is_admin && (
-                    <li onClick={() => { setIsProfileDropdownOpen(false); navigate('/admin'); }} style={{ color: '#ff3b30', fontWeight: 'bold' }}>👑 Admin Panel</li>
+                    <li onClick={() => navigate('/admin')} style={{ color: '#ff3b30', fontWeight: 'bold' }}>👑 Admin Panel</li>
                   )}
                   <div className="divider"></div>
-                  {/* Notice we call onLogout() here now */}
                   <li className="logout-text" onClick={() => {
-                    setIsProfileDropdownOpen(false);
                     onLogout(); 
                   }}>
                     Logout
                   </li>
                 </ul>
               </div>
-            )}
-          </div>
+            </div>
           </>
         ) : (
           <span className="nav-link" onClick={onLoginClick} style={{ cursor: 'pointer' }}>
@@ -320,28 +296,20 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
       </div>
     </nav>
 
-    {/* ---> ADDED: The hidden sidebar and dark overlay UI <--- */}
-    <div className={`sidebar ${isMenuOpen ? 'open' : ''} ${theme}`}>
+    {/* Sidebar */}
+    <div className={`sidebar ${isMenuOpen ? 'open' : ''}`}>
       <button className="sidebar__close" onClick={() => setIsMenuOpen(false)}>
         &times;                                                               
       </button>
       <div className="sidebar__content">
         <h3>Discover</h3>
         <Link to="/people" onClick={() => setIsMenuOpen(false)}>🔍 Find People</Link>
-        <Link to="/top-movies" onClick={() => setIsMenuOpen(false)}>Top Movies</Link>
-        <Link to="/popular" onClick={() => setIsMenuOpen(false)}>Popular Movies</Link>
-        <Link to="/actors" onClick={() => setIsMenuOpen(false)}>Actors</Link>
-        <Link to="/directors" onClick={() => setIsMenuOpen(false)}>Directors</Link>
-        {/* adding later */}
-        <Link to="/crews" onClick={() => setIsMenuOpen(false)}>Crews</Link>
-        <Link to="/writers" onClick={() => setIsMenuOpen(false)}>Writers</Link>
-
-
-        <Link to="/celebrities" onClick={() => setIsMenuOpen(true)}>Celebrities</Link>
+        <Link to="/movies" onClick={() => setIsMenuOpen(false)}>🎬 Top Movies</Link>
+        <Link to="/series" onClick={() => setIsMenuOpen(false)}>📺 Series</Link>
+        <Link to="/crews" onClick={() => setIsMenuOpen(false)}>🎭 Crews</Link>
       </div>
     </div>
 
-    {/* The overlay darkens the rest of the screen and closes the menu if clicked */}
     {isMenuOpen && (
       <div className="sidebar-overlay" onClick={() => setIsMenuOpen(false)}></div>
     )}
@@ -352,49 +320,3 @@ function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) 
 }
 
 export default Navbar;
-
-// import React from 'react';
-// import { Link } from 'react-router-dom';
-// import './Navbar.css';
-
-// function Navbar({ user, onLogout, onLoginClick, theme, toggleTheme, onSearch }) {
-//   return (
-//     <nav className={`navbar ${theme}`}>
-//       <div className="navbar__logo">
-//         <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>🎬 PopCorn</Link>
-//       </div>
-      
-//       <div className="navbar__search">
-//         <input
-//           type="text"
-//           placeholder="Search movies, series..."
-//           onChange={(e)=>onSearch(e.target.value)}
-//         />
-//       </div>
-      
-//       <div className="navbar__menu">
-//         <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}><span>Home</span></Link>
-//         <Link to="/movies" style={{ textDecoration: 'none', color: 'inherit' }}><span>Movies</span></Link>
-//         <span>Series</span>
-        
-//         {/* Theme Toggle */}
-//         <span className="nav-link" onClick={toggleTheme} style={{ cursor: 'pointer' }}>
-//           {theme === 'dark' ? '☀️' : '🌙'}
-//         </span>
-        
-//         {user ? (
-//           <span className="nav-link" onClick={onLogout} style={{ cursor: 'pointer' }}>
-//             Logout ({user.username})
-//           </span>
-//         ) : (
-//           <span className="nav-link" onClick={onLoginClick} style={{ cursor: 'pointer' }}>
-//             Login
-//           </span>
-//         )}
-//       </div>
-//     </nav>
-//   );
-// }
-
-// export default Navbar;
-

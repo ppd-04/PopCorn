@@ -1,0 +1,327 @@
+/* =========================================
+   HOME PAGE — Guidelines + Genre Rows
+   ========================================= */
+
+/* Guidelines Section */
+.guidelines-section {
+  padding: 60px 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.guidelines-section h2 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2rem;
+  text-align: center;
+  margin-bottom: 40px;
+  background: linear-gradient(45deg, #f5c518, #ffffff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.guidelines-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+}
+
+.guideline-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(245, 197, 24, 0.15);
+  border-radius: 18px;
+  padding: 30px 24px;
+  backdrop-filter: blur(12px);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+
+.guideline-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #f5c518, transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.guideline-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(245, 197, 24, 0.35);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+.guideline-card:hover::before {
+  opacity: 1;
+}
+
+.guideline-icon {
+  font-size: 2.4rem;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.guideline-card h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.2rem;
+  color: #f5c518;
+  margin-bottom: 10px;
+}
+
+.guideline-card p {
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+/* =========================================
+   GENRE ROWS — Horizontal Scrolling
+   ========================================= */
+
+.genre-rows-section {
+  padding: 40px 0 60px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.genre-row {
+  margin-bottom: 50px;
+  animation: fadeInUp 0.6s ease forwards;
+}
+
+.genre-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 30px;
+  margin-bottom: 18px;
+}
+
+.genre-row-header h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.5rem;
+  color: #fff;
+  position: relative;
+  padding-left: 16px;
+}
+
+.genre-row-header h3::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 24px;
+  background: #f5c518;
+  border-radius: 2px;
+}
+
+.genre-row-header .genre-count {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 400;
+}
+
+.genre-scroll-wrapper {
+  position: relative;
+}
+
+.genre-scroll-container {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding: 8px 30px 20px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.genre-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.genre-scroll-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(245, 197, 24, 0.9);
+  color: #000;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+  transition: all 0.25s ease;
+  opacity: 0;
+}
+
+.genre-scroll-wrapper:hover .genre-scroll-btn {
+  opacity: 1;
+}
+
+.genre-scroll-btn:hover {
+  transform: translateY(-50%) scale(1.15);
+  background: #f5c518;
+}
+
+.genre-scroll-btn.left {
+  left: 8px;
+}
+
+.genre-scroll-btn.right {
+  right: 8px;
+}
+
+/* Genre Movie Card */
+.genre-movie-card {
+  flex: 0 0 200px;
+  scroll-snap-align: start;
+  background: rgba(20, 20, 20, 0.9);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.genre-movie-card:hover {
+  transform: translateY(-8px) scale(1.03);
+  border-color: rgba(245, 197, 24, 0.3);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+}
+
+.genre-movie-poster {
+  width: 100%;
+  height: 280px;
+  overflow: hidden;
+  position: relative;
+}
+
+.genre-movie-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.genre-movie-card:hover .genre-movie-poster img {
+  transform: scale(1.08);
+}
+
+.genre-movie-poster .no-poster {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1a1a1a;
+  color: #555;
+  font-size: 2rem;
+}
+
+.genre-movie-rating {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  color: #f5c518;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.genre-movie-info {
+  padding: 12px 14px;
+}
+
+.genre-movie-info h4 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.genre-movie-info span {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Genre row loading state */
+.genre-row-loading {
+  display: flex;
+  gap: 18px;
+  padding: 8px 30px 20px;
+}
+
+.genre-card-skeleton {
+  flex: 0 0 200px;
+  height: 340px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0.4; }
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .guidelines-grid {
+    grid-template-columns: 1fr;
+  }
+  .genre-movie-card {
+    flex: 0 0 160px;
+  }
+  .genre-movie-poster {
+    height: 220px;
+  }
+  .genre-row-header {
+    padding: 0 16px;
+  }
+  .genre-scroll-container {
+    padding: 8px 16px 20px;
+  }
+  .guidelines-section {
+    padding: 40px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .genre-movie-card {
+    flex: 0 0 140px;
+  }
+  .genre-movie-poster {
+    height: 190px;
+  }
+}

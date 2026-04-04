@@ -60,7 +60,7 @@
 
 .close-btn:hover {
   background: rgba(245, 197, 24, 0.4);
-  transform: scale(1.1);
+  transform: scale(1.1) rotate(90deg);
 }
 
 .logo-icon {
@@ -75,6 +75,7 @@
 }
 
 .auth-title {
+  font-family: 'Outfit', sans-serif;
   font-size: 2.3rem;
   background: linear-gradient(45deg, #f5c518, #ffffff, #f5c518);
   -webkit-background-clip: text;
@@ -110,7 +111,9 @@
   letter-spacing: 0.5px;
 }
 
-input {
+.auth-form input,
+.auth-form textarea,
+.auth-form select {
   padding: 18px 22px;
   border: 2px solid rgba(245, 197, 24, 0.2);
   border-radius: 16px;
@@ -120,13 +123,17 @@ input {
   font-size: 16px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
+  font-family: 'Inter', sans-serif;
 }
 
-input::placeholder {
+.auth-form input::placeholder,
+.auth-form textarea::placeholder {
   color: rgba(255, 255, 255, 0.5);
 }
 
-input:focus {
+.auth-form input:focus,
+.auth-form textarea:focus,
+.auth-form select:focus {
   outline: none;
   border-color: #f5c518;
   box-shadow: 0 0 0 4px rgba(245, 197, 24, 0.15);
@@ -147,6 +154,7 @@ input:focus {
   position: relative;
   overflow: hidden;
   margin-top: 8px;
+  font-family: 'Inter', sans-serif;
 }
 
 .auth-submit::before {
@@ -183,11 +191,19 @@ input:focus {
   margin: 20px 0;
   animation: slideInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
   border: 1px solid rgba(245, 197, 24, 0.3);
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .message.success {
   background: rgba(245, 197, 24, 0.15);
   color: #f5c518;
+}
+
+.message.error {
+  background: rgba(255, 77, 77, 0.1);
+  border-color: rgba(255, 77, 77, 0.3);
+  color: #ff6b6b;
 }
 
 .forgot-password {
@@ -204,6 +220,7 @@ input:focus {
   padding: 8px 16px;
   border-radius: 8px;
   transition: all 0.3s ease;
+  font-family: 'Inter', sans-serif;
 }
 
 .forgot-btn:hover {
@@ -230,12 +247,165 @@ input:focus {
   border-radius: 8px;
   margin-left: 6px;
   transition: all 0.3s ease;
+  font-family: 'Inter', sans-serif;
 }
 
 .toggle-btn:hover {
   background: rgba(245, 197, 24, 0.15);
   transform: translateY(-1px);
 }
+
+/* ===================================== */
+/* LOGIN SUCCESS ANIMATION OVERLAY       */
+/* ===================================== */
+
+.login-success-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 15, 15, 0.97);
+  border-radius: 25px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  z-index: 10;
+  animation: successFadeIn 0.5s ease forwards;
+}
+
+.success-checkmark {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(245, 197, 24, 0.15);
+  border: 3px solid #f5c518;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: checkScaleIn 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.success-checkmark svg {
+  width: 40px;
+  height: 40px;
+}
+
+.success-checkmark .check-path {
+  stroke: #f5c518;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+  stroke-dasharray: 50;
+  stroke-dashoffset: 50;
+  animation: drawCheck 0.6s 0.3s ease forwards;
+}
+
+.success-text {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.5rem;
+  color: #f5c518;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(10px);
+  animation: successTextIn 0.5s 0.5s ease forwards;
+}
+
+.success-subtext {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.6);
+  opacity: 0;
+  animation: successTextIn 0.5s 0.7s ease forwards;
+}
+
+.success-redirect {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.4);
+  opacity: 0;
+  animation: successTextIn 0.5s 0.9s ease forwards;
+}
+
+.login-success-overlay.closing {
+  animation: successFadeOut 0.5s ease forwards;
+}
+
+@keyframes successFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes successFadeOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+}
+
+@keyframes checkScaleIn {
+  from { transform: scale(0); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+@keyframes drawCheck {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes successTextIn {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Verification email sent state */
+.verification-sent {
+  text-align: center;
+  padding: 20px 0;
+}
+
+.verification-sent .email-icon {
+  font-size: 3rem;
+  margin-bottom: 16px;
+  animation: float 3s ease-in-out infinite;
+}
+
+.verification-sent h3 {
+  font-family: 'Outfit', sans-serif;
+  color: #f5c518;
+  margin-bottom: 12px;
+  font-size: 1.4rem;
+}
+
+.verification-sent p {
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.resend-btn {
+  background: transparent;
+  border: 1px solid rgba(245, 197, 24, 0.3);
+  color: #f5c518;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+  margin-top: 10px;
+  font-family: 'Inter', sans-serif;
+}
+
+.resend-btn:hover {
+  background: rgba(245, 197, 24, 0.1);
+  border-color: #f5c518;
+}
+
+.resend-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===================================== */
+/* KEYFRAME ANIMATIONS                    */
+/* ===================================== */
 
 @keyframes modalSlideIn {
   from {
@@ -264,35 +434,6 @@ input:focus {
   50% { transform: translateY(-10px); }
 }
 
-@media (max-width: 480px) {
-  .auth-container {
-    padding: 35px 25px;
-    margin: 10px;
-  }
-  
-  .auth-title {
-    font-size: 2rem;
-  }
-  
-  .logo-icon {
-    font-size: 2.5rem;
-  }
-
-  .form-row {
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .form-group-half {
-    width: 100%;
-  }
-
-  .auth-container-register {
-    max-width: 420px;
-    padding: 35px 25px;
-  }
-}
-
 /* ===================================== */
 /* REGISTRATION FORM EXPANDED STYLES     */
 /* ===================================== */
@@ -304,7 +445,6 @@ input:focus {
   overflow-y: auto;
 }
 
-/* Custom scrollbar for registration form */
 .auth-container-register::-webkit-scrollbar {
   width: 6px;
 }
@@ -470,7 +610,7 @@ input:focus {
   background: rgba(255, 255, 255, 0.12);
 }
 
-/* Date input color fix for dark theme */
+/* Date input color fix */
 input[type="date"] {
   color-scheme: dark;
 }
@@ -488,4 +628,33 @@ input[type="date"] {
   color: rgba(255, 255, 255, 0.45);
   margin-top: 2px;
   padding-left: 4px;
+}
+
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 35px 25px;
+    margin: 10px;
+  }
+  
+  .auth-title {
+    font-size: 2rem;
+  }
+  
+  .logo-icon {
+    font-size: 2.5rem;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .form-group-half {
+    width: 100%;
+  }
+
+  .auth-container-register {
+    max-width: 420px;
+    padding: 35px 25px;
+  }
 }

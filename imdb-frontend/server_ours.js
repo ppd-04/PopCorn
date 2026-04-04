@@ -7,13 +7,6 @@ const { Pool } = require('pg');
 const http = require('http');
 const { Server } = require('socket.io');
 
-const { Resend } = require('resend');
-const crypto = require('crypto');
-
-const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
-
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -221,113 +214,101 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
 
 // first route e, new user register
 
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-app.post('/api/send-otp', async (req, res) => {
-    const { email, password, full_name, date_of_birth, phone_number, gender } = req.body;
-    
-    try {
-        if (!email || !password) throw new Error('Email and password are required');
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) throw new Error('Invalid email format');
-        if (password.length < 6) throw new Error('Password must be at least 6 characters long');
-        if (!full_name || full_name.trim().length < 2) throw new Error('Full name is required (at least 2 characters)');
-
-        const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userCheck.rows.length > 0) throw new Error('User already exists');
-
-        const otp = generateOTP();
-        const expiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
-
-        await pool.query(
-            `INSERT INTO email_otps (email, otp_code, expires_at) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (email) DO UPDATE SET otp_code = EXCLUDED.otp_code, expires_at = EXCLUDED.expires_at`,
-            [email, otp, expiresAt]
-        );
-
-        await resend.emails.send({
-            from: 'PopCorn <onboarding@resend.dev>',
-            to: email,
-            subject: '≡ƒÄ¼ Your PopCorn OTP Code',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; background: #0a0a0a; color: #fff; padding: 40px; border-radius: 16px; border: 1px solid rgba(245,197,24,0.3);">
-                    <h1 style="color: #f5c518; text-align: center;">≡ƒÄ¼ PopCorn Verification</h1>
-                    <p style="text-align: center; color: #ccc;">Hi ${full_name || 'there'},</p>
-                    <p style="text-align: center; color: #ccc;">Here is your code to verify your email. It expires in 10 minutes:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <span style="display: inline-block; padding: 14px 32px; background: #222; color: #f5c518; border-radius: 10px; font-weight: bold; font-size: 32px; letter-spacing: 4px; border: 2px dashed #f5c518;">${otp}</span>
-                    </div>
-                </div>
-            `
-        });
-
-        res.json({ message: 'OTP sent successfully to email' });
-    } catch (error) {
-        console.error('OTP Send Error:', error);
-        res.status(400).json({ error: error.message || 'Failed to send OTP' });
-    }
-});
-
 app.post('/api/register', async (req, res) => {
-    const { email, password, full_name, date_of_birth, gender, phone_number, address, profile_picture, otp_code } = req.body;
-    
+    const { email, password, full_name, date_of_birth, gender, phone_number, address, profile_picture } = req.body;
     const client = await pool.connect();
-    
-    try {
-        if (!email || !otp_code) throw new Error('Email and OTP code are required');
-        
-        await client.query('BEGIN');
 
-        // Check OTP
-        const otpCheck = await client.query('SELECT * FROM email_otps WHERE email = $1 AND otp_code = $2', [email, otp_code]);
-        if (otpCheck.rows.length === 0) throw new Error('Invalid or expired OTP');
-        
-        if (new Date() > new Date(otpCheck.rows[0].expires_at)) {
-            await client.query('DELETE FROM email_otps WHERE email = $1', [email]);
-            throw new Error('OTP has expired, please request a new one');
+    try {
+        // --- Server-side Validation ---
+        if (!email || !password) {
+            throw new Error('Email and password are required');
         }
 
+        // Email format check
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new Error('Invalid email format');
+        }
+
+        // Password strength check
+        if (password.length < 6) {
+            throw new Error('Password must be at least 6 characters long');
+        }
+
+        // Full name check
+        if (!full_name || full_name.trim().length < 2) {
+            throw new Error('Full name is required (at least 2 characters)');
+        }
+
+
+        if (date_of_birth) {
+            const dob = new Date(date_of_birth);
+            const now = new Date();
+            if (isNaN(dob.getTime()) || dob >= now) {
+                throw new Error('Please provide a valid date of birth');
+            }
+        }
+        // eta na dileo pera nai 
+        if (phone_number && phone_number.trim() !== '') {
+            const phoneRegex = /^[+]?[\d\s()-]{7,20}$/;
+            if (!phoneRegex.test(phone_number)) {
+                throw new Error('Invalid phone number format');
+            }
+        }
+
+        const allowedGenders = ['Male', 'Female', 'Other', 'Prefer not to say', ''];
+        if (gender && !allowedGenders.includes(gender)) {
+            throw new Error('Invalid gender selection');
+        }
+
+        // shuru 
+        await client.query('BEGIN');
+
+        // $1 er jaygay email boshbe, placeholder, WHERE EMAIL=EMAIL ER POSH VERSION
+
         const userCheck = await client.query('SELECT * FROM users WHERE email = $1', [email]);
-        if (userCheck.rows.length > 0) throw new Error('User already exists');
+        if (userCheck.rows.length > 0) {
+            throw new Error('User already exists');
+        }
+
+
+        // await mane wait kortese, promise korse password pailei diye dibe
 
         const koybarHashingHobe = 10;
         const passwordHash = await bcrypt.hash(password, koybarHashingHobe);
 
+
+        // apatoto password hash na kore password dicchi shudhu, pore ekhane hashing build kora lagbe
         const userEmail = email.split('@')[0];
-        const insertQuery = `INSERT INTO users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_verified) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+        const insertQuery = `INSERT INTO users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) 
             RETURNING user_id, email, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_admin`;
+        // const insertQuery = 'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING id, email';
         const newUser = await client.query(insertQuery, [
-            email, passwordHash, userEmail,
+            email,
+            passwordHash,
+            userEmail,
             full_name ? full_name.trim() : null,
-            date_of_birth || null, gender || null,
+            date_of_birth || null,
+            gender || null,
             phone_number ? phone_number.trim() : null,
             address ? address.trim() : null,
-            profile_picture || null, true // Automatically verified
+            profile_picture || null
         ]);
 
-        await client.query('DELETE FROM email_otps WHERE email = $1', [email]);
-        
+        // commit koro
         await client.query('COMMIT');
 
-        // Automatically log them in by returning a token
-        const token = jwt.sign(
-            { userId: newUser.rows[0].user_id, email: newUser.rows[0].email, isAdmin: newUser.rows[0].is_admin },
-            process.env.JWT_SECRET,
-            { expiresIn: '30d' }
-        );
-
         res.status(201).json({
-            message: 'Account verified and created successfully!',
-            user: newUser.rows[0],
-            token: token
+            message: 'User created successfully',
+            user: newUser.rows[0]
         });
 
     } catch (error) {
+        // genjam hoile rollback
         await client.query('ROLLBACK');
         console.error(error);
-        res.status(400).json({ error: error.message || 'Verification failed' });
+        res.status(400).json({ error: error.message || 'Registration failed' });
     } finally {
         client.release();
     }
@@ -345,22 +326,20 @@ app.post('/api/login', async (req, res) => {
 
         const user = result.rows[0];
 
-        // Check email verification
-        if (user.is_verified === false) {
-            return res.status(403).json({ error: 'Please verify your email before logging in. Check your inbox for the verification link.' });
-        }
-
+        // db te hash kora pass use kora hoise so hashed password er sathe compare kore
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
 
+        // web tok        // jwt hocche ekta string je ta user info ke rakhe and secured
         const token = jwt.sign(
-            { userId: user.user_id, email: user.email, isAdmin: user.is_admin },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
+            { userId: user.user_id, email: user.email, isAdmin: user.is_admin }, // Payload
+            process.env.JWT_SECRET,                 // Secret Key
+            { expiresIn: '24h' }                     // Expiration, 1hour por abar login kora lagbe
         );
 
+        // token ta react e pathao, mane frontend e token jay
         res.json({
             message: 'Login successful',
             token: token,
@@ -381,99 +360,6 @@ app.post('/api/login', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Server error during login' });
-    }
-});
-
-// Email verification endpoint
-app.get('/api/verify-email', async (req, res) => {
-    const { token } = req.query;
-    if (!token) {
-        return res.status(400).json({ error: 'Verification token is required' });
-    }
-
-    try {
-        const result = await pool.query(
-            'SELECT user_id, email, is_verified FROM users WHERE verification_token = $1',
-            [token]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(400).json({ error: 'Invalid or expired verification link.' });
-        }
-
-        const user = result.rows[0];
-
-        if (user.is_verified) {
-            return res.json({ message: 'Your email is already verified! You can log in now.' });
-        }
-
-        await pool.query(
-            'UPDATE users SET is_verified = true, verification_token = NULL WHERE user_id = $1',
-            [user.user_id]
-        );
-
-        console.log(`Γ£à Email verified for user ${user.email}`);
-        res.json({ message: 'Email verified successfully! You can now log in to PopCorn.' });
-
-    } catch (error) {
-        console.error('Verification error:', error);
-        res.status(500).json({ error: 'Server error during verification' });
-    }
-});
-
-// Resend verification email
-app.post('/api/resend-verification', async (req, res) => {
-    const { email } = req.body;
-    if (!email) {
-        return res.status(400).json({ error: 'Email is required' });
-    }
-
-    try {
-        const result = await pool.query(
-            'SELECT user_id, username, full_name, is_verified, verification_token FROM users WHERE email = $1',
-            [email]
-        );
-
-        if (result.rows.length === 0) {
-            return res.status(404).json({ error: 'No account found with this email' });
-        }
-
-        const user = result.rows[0];
-
-        if (user.is_verified) {
-            return res.json({ message: 'Email is already verified. You can log in.' });
-        }
-
-        // Generate new token if needed
-        let token = user.verification_token;
-        if (!token) {
-            token = crypto.randomBytes(32).toString('hex');
-            await pool.query('UPDATE users SET verification_token = $1 WHERE user_id = $2', [token, user.user_id]);
-        }
-
-        const verifyUrl = `${FRONTEND_URL}/verify?token=${token}`;
-        await resend.emails.send({
-            from: 'PopCorn <onboarding@resend.dev>',
-            to: email,
-            subject: '≡ƒÄ¼ Verify your PopCorn account',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; background: #0a0a0a; color: #fff; padding: 40px; border-radius: 16px; border: 1px solid rgba(245,197,24,0.3);">
-                    <h1 style="color: #f5c518; text-align: center;">≡ƒÄ¼ Verify Your Email</h1>
-                    <p style="text-align: center; color: #ccc;">Click below to verify your PopCorn account:</p>
-                    <div style="text-align: center; margin: 30px 0;">
-                        <a href="${verifyUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(45deg, #f5c518, #e6b800); color: #000; text-decoration: none; border-radius: 10px; font-weight: bold;">Verify My Email</a>
-                    </div>
-                    <p style="text-align: center; color: #888; font-size: 12px;"><a href="${verifyUrl}" style="color: #f5c518;">${verifyUrl}</a></p>
-                </div>
-            `
-        });
-
-        console.log(`Γ£à Resent verification email to ${email}`);
-        res.json({ message: 'Verification email resent!' });
-
-    } catch (error) {
-        console.error('Resend verification error:', error);
-        res.status(500).json({ error: 'Failed to resend verification email' });
     }
 });
 
@@ -1697,220 +1583,6 @@ app.get('/api/series/top', async (req, res) => {
         res.status(500).json({ error: 'server error' });
     }
 });
-
-// ==========================================
-// SERIES DETAILS ROUTES
-// ==========================================
-
-app.get('/api/series/:id/rating', async (req, res) => {
-    try {
-        const { id } = req.params;
-        let myRating = null;
-
-        const authHeader = req.headers['authorization'];
-        if (authHeader) {
-            const token = authHeader.split(' ')[1];
-            try {
-                const user = jwt.verify(token, process.env.JWT_SECRET);
-                const userRatingRes = await pool.query('SELECT rating FROM series_ratings WHERE series_id = $1 AND user_id = $2', [id, user.userId]);
-                if (userRatingRes.rows.length > 0) {
-                    myRating = userRatingRes.rows[0].rating;
-                }
-            } catch (e) { }
-        }
-
-        const statsRes = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE id = $1', [id]);
-        if (statsRes.rows.length > 0) {
-            res.json({
-                avg_rating: statsRes.rows[0].vote_average,
-                total_ratings: statsRes.rows[0].vote_count,
-                my_rating: myRating
-            });
-        } else {
-            res.json({ avg_rating: 0, total_ratings: 0, my_rating: myRating });
-        }
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch series rating' });
-    }
-});
-
-app.post('/api/series/:id/rate', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const { rating } = req.body;
-    const userId = req.user.userId;
-
-    try {
-        await pool.query(
-            `INSERT INTO series_ratings (series_id, user_id, rating) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (series_id, user_id) 
-             DO UPDATE SET rating = excluded.rating`,
-            [id, userId, rating]
-        );
-
-        const result = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE id = $1', [id]);
-
-        res.json({
-            message: 'Rating saved successfully',
-            my_rating: rating,
-            avg_rating: result.rows[0].vote_average,
-            total_ratings: result.rows[0].vote_count
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to save rating' });
-    }
-});
-
-app.get('/api/series/:id/status', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.userId;
-
-    try {
-        const [watchlistRes, favRes, watchedRes] = await Promise.all([
-            pool.query('SELECT 1 FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]),
-            pool.query('SELECT 1 FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]),
-            pool.query('SELECT 1 FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id])
-        ]);
-
-        res.json({
-            in_watchlist: watchlistRes.rows.length > 0,
-            is_favourite: favRes.rows.length > 0,
-            is_watched: watchedRes.rows.length > 0
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch status' });
-    }
-});
-
-app.post('/api/series/:id/watchlist', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.userId;
-
-    try {
-        const check = await pool.query('SELECT 1 FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]);
-        if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]);
-            res.json({ in_watchlist: false, message: 'Removed from watchlist' });
-        } else {
-            await pool.query('INSERT INTO user_series_watchlist (user_id, series_id) VALUES ($1, $2)', [userId, id]);
-            res.json({ in_watchlist: true, message: 'Added to watchlist' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to toggle watchlist' });
-    }
-});
-
-app.post('/api/series/:id/favourite', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.userId;
-
-    try {
-        const check = await pool.query('SELECT 1 FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]);
-        if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]);
-            res.json({ is_favourite: false, message: 'Removed from favourites' });
-        } else {
-            await pool.query('INSERT INTO user_series_favourites (user_id, series_id) VALUES ($1, $2)', [userId, id]);
-            res.json({ is_favourite: true, message: 'Added to favourites' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to toggle favourite' });
-    }
-});
-
-app.post('/api/series/:id/watched', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.userId;
-
-    try {
-        const check = await pool.query('SELECT 1 FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id]);
-        if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id]);
-            res.json({ is_watched: false, message: 'Removed from watched' });
-        } else {
-            await pool.query('INSERT INTO user_series_watched (user_id, series_id) VALUES ($1, $2)', [userId, id]);
-            res.json({ is_watched: true, message: 'Added to watched check' });
-        }
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to toggle watched' });
-    }
-});
-
-app.get('/api/series/:id/comments', async (req, res) => {
-    const { id } = req.params;
-    try {
-        const query = `
-            SELECT c.*, u.username, u.full_name, u.profile_picture 
-            FROM series_comments c
-            JOIN users u ON c.user_id = u.user_id
-            WHERE c.series_id = $1
-            ORDER BY c.created_at DESC
-        `;
-        const result = await pool.query(query, [id]);
-        res.json(result.rows);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to fetch comments' });
-    }
-});
-
-app.post('/api/series/:id/comments', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const { content } = req.body;
-    const userId = req.user.userId;
-
-    if (!content || !content.trim()) {
-        return res.status(400).json({ error: 'Comment content is required' });
-    }
-
-    try {
-        const result = await pool.query(
-            `INSERT INTO series_comments (series_id, user_id, content) 
-             VALUES ($1, $2, $3) RETURNING *`,
-            [id, userId, content.trim()]
-        );
-
-        const comment = result.rows[0];
-        const userRes = await pool.query('SELECT username, full_name, profile_picture FROM users WHERE user_id = $1', [userId]);
-        const user = userRes.rows[0];
-
-        res.status(201).json({
-            ...comment,
-            username: user.username,
-            full_name: user.full_name,
-            profile_picture: user.profile_picture
-        });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to post comment' });
-    }
-});
-
-app.delete('/api/series-comments/:id', authenticateToken, async (req, res) => {
-    const { id } = req.params;
-    const userId = req.user.userId;
-
-    try {
-        const check = await pool.query('SELECT user_id FROM series_comments WHERE comment_id = $1', [id]);
-        if (check.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });
-        
-        if (check.rows[0].user_id !== userId && !req.user.isAdmin) {
-            return res.status(403).json({ error: 'Not authorized to delete this comment' });
-        }
-
-        await pool.query('DELETE FROM series_comments WHERE comment_id = $1', [id]);
-        res.json({ message: 'Comment deleted successfully' });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'Failed to delete comment' });
-    }
-});
-
-
-
 
 // ==========================================
 // FRIENDS & PROFILE ROUTES

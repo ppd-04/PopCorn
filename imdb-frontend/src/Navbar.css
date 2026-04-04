@@ -1,5 +1,5 @@
 /* =========================================
-   YOUR ORIGINAL NAVBAR STYLES
+   NAVBAR STYLES — DARK ONLY
    ========================================= */
 .navbar {
   display: flex;
@@ -16,6 +16,7 @@
 }
 
 .navbar__logo {
+  font-family: 'Outfit', sans-serif;
   font-size: 28px;
   font-weight: 800;
   background: linear-gradient(45deg, #f5c518, #ffffff);
@@ -34,6 +35,8 @@
   flex: 1;
   max-width: 500px;
   margin: 0 40px;
+  position: relative;
+  overflow: visible;
 }
 
 .navbar__search input {
@@ -47,6 +50,7 @@
   font-size: 16px;
   outline: none;
   transition: all 0.3s ease;
+  font-family: 'Inter', sans-serif;
 }
 
 .navbar__search input::placeholder {
@@ -70,7 +74,7 @@
   border-radius: 20px;
   cursor: pointer;
   font-weight: 500;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
 }
 
@@ -120,36 +124,28 @@
 }
 
 .navbar__hamburger:hover {
-  transform: scale(1.1);
+  transform: scale(1.15);
 }
 
-/* Sidebar Container */
 .sidebar {
   position: fixed;
   top: 0;
-  left: -300px; /* Hidden off-screen by default */
-  width: 250px;
+  left: -300px;
+  width: 260px;
   height: 100vh;
-  background-color: #121212;
+  background: linear-gradient(180deg, #0d0d0d 0%, #1a1a1a 100%);
   border-right: 1px solid rgba(245, 197, 24, 0.2);
-  z-index: 1001; /* Must be higher than the navbar */
-  transition: left 0.3s ease-in-out;
-  box-shadow: 2px 0 15px rgba(0,0,0,0.8);
+  z-index: 1001;
+  transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 2px 0 25px rgba(0,0,0,0.8);
   padding: 20px;
   display: flex;
   flex-direction: column;
   color: white;
 }
 
-/* Light mode support */
-.sidebar.light {
-  background-color: #f8f9fa;
-  color: #333;
-}
-
-/* When the state is true, slide it in */
 .sidebar.open {
-  left: 0; 
+  left: 0;
 }
 
 .sidebar__close {
@@ -161,16 +157,18 @@
   cursor: pointer;
   margin-bottom: 20px;
   line-height: 1;
-  transition: color 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .sidebar__close:hover {
   color: #f5c518;
+  transform: rotate(90deg);
 }
 
 .sidebar__content h3 {
-  color: #f5c518; 
+  color: #f5c518;
   margin-bottom: 25px;
+  font-family: 'Outfit', sans-serif;
   font-size: 1.2rem;
   text-transform: uppercase;
   letter-spacing: 1.5px;
@@ -179,21 +177,25 @@
 }
 
 .sidebar__content a {
-  display: block;
-  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(255, 255, 255, 0.85);
   text-decoration: none;
-  font-size: 1.1rem;
-  margin-bottom: 20px;
-  transition: all 0.2s;
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   font-weight: 500;
 }
 
 .sidebar__content a:hover {
   color: #f5c518;
-  transform: translateX(5px); /* Cute little slide effect on hover */
+  background: rgba(245, 197, 24, 0.1);
+  transform: translateX(6px);
 }
 
-/* The dark background overlay */
 .sidebar-overlay {
   position: fixed;
   top: 0;
@@ -202,24 +204,24 @@
   height: 100vh;
   background-color: rgba(0, 0, 0, 0.7);
   backdrop-filter: blur(3px);
-  z-index: 1000; /* Just below the sidebar, but above everything else */
+  z-index: 1000;
 }
 
 /* =========================================
-   NEW PROFILE DROPDOWN STYLES
+   PROFILE DROPDOWN — HOVER-BASED
    ========================================= */
 
 .profile-menu-container {
   position: relative;
   display: inline-block;
-  margin-left: 15px; 
+  margin-left: 15px;
 }
 
 .profile-avatar {
   width: 38px;
   height: 38px;
-  background-color: #f5c518; 
-  color: #121212; /* Dark text on yellow background */
+  background-color: #f5c518;
+  color: #121212;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -232,67 +234,77 @@
 }
 
 .profile-avatar:hover {
-  border: 2px solid #ffffff; 
+  border: 2px solid #ffffff;
   transform: scale(1.05);
 }
 
 .dropdown-menu {
   position: absolute;
-  top: 60px; /* Dropped down slightly to clear the navbar cleanly */
+  top: 50px;
   right: 0;
-  background-color: #1a1a1a;
-  border: 1px solid rgba(245, 197, 24, 0.2); /* Matches navbar border */
-  border-radius: 12px;
-  width: 180px;
-  box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.7);
-  z-index: 1005; /* Keeps it above everything */
-  overflow: hidden; /* Ensures rounded corners look neat on hover */
+  background: #1a1a1a;
+  border: 1px solid rgba(245, 197, 24, 0.2);
+  border-radius: 14px;
+  width: 200px;
+  box-shadow: 0px 12px 40px rgba(0, 0, 0, 0.8);
+  z-index: 1005;
+  overflow: visible;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px) scale(0.96);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
-/* Light Theme Support for Dropdown */
-.light .dropdown-menu {
-  background-color: #ffffff;
-  border: 1px solid #e0e0e0;
-  box-shadow: 0px 8px 25px rgba(0, 0, 0, 0.1);
+/* Invisible bridge to prevent hover gap dropping */
+.dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: -20px;
+  left: 0;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+}
+
+.profile-menu-container:hover .dropdown-menu,
+.dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+  pointer-events: all;
 }
 
 .dropdown-menu ul {
   list-style: none;
   padding: 0;
   margin: 0;
+  overflow: hidden;
+  border-radius: 14px;
 }
 
 .dropdown-menu li {
   padding: 12px 20px;
   color: #ffffff;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.light .dropdown-menu li {
-  color: #333333;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .dropdown-menu li:hover {
-  background-color: rgba(245, 197, 24, 0.15); /* Subtle IMDb yellow tint */
+  background-color: rgba(245, 197, 24, 0.12);
   color: #f5c518;
-}
-
-.light .dropdown-menu li:hover {
-  background-color: #f5f5f5;
-  color: #000;
+  padding-left: 24px;
 }
 
 .divider {
   height: 1px;
   background-color: rgba(255, 255, 255, 0.1);
   margin: 4px 0;
-}
-
-.light .divider {
-  background-color: #eeeeee;
 }
 
 .logout-text {
@@ -303,9 +315,10 @@
   background-color: rgba(255, 77, 77, 0.1) !important;
 }
 
+/* =========================================
+   SEARCH SUGGESTIONS
+   ========================================= */
 
-
-/* Search suggestions dropdown */
 .search-suggestions {
   position: absolute;
   margin-top: 8px;
@@ -316,35 +329,31 @@
   border: 1px solid rgba(245, 197, 24, 0.25);
   max-height: 300px;
   overflow-y: auto;
+  overflow-x: visible;
   box-shadow: 0 10px 24px rgba(0,0,0,0.35);
   z-index: 1002;
+  background: #121212;
+  color: #eee;
 }
-.search-suggestions.dark { background: #121212; color: #eee; }
-.search-suggestions.light { background: #ffffff; color: #111; border-color: rgba(0,0,0,0.12); }
+
 .search-suggestions li {
   padding: 10px 14px;
   cursor: pointer;
+  position: relative;
 }
+
 .search-suggestions li:hover,
 .search-suggestions li.highlighted {
   background: rgba(245, 197, 24, 0.15);
 }
-.search-suggestions.light li:hover,
-.search-suggestions.light li.highlighted {
-  background: rgba(0,0,0,0.06);
-}
 
-/* Ensure the dropdown positions relative to the search container */
-.navbar__search { position: relative; }
-
-
-/* Suggestion items with thumbnail and subtitle */
 .suggestion-item {
   display: flex;
   align-items: center;
   gap: 10px;
   position: relative;
 }
+
 .suggestion-thumb {
   width: 32px;
   height: 48px;
@@ -357,29 +366,26 @@
   place-items: center;
   font-size: 16px;
 }
-.search-suggestions.light .suggestion-thumb {
-  background: rgba(0,0,0,0.06);
-  border-color: rgba(0,0,0,0.12);
-}
+
 .suggestion-thumb.placeholder {
   color: #f5c518;
 }
+
 .suggestion-text {
   display: flex;
   flex-direction: column;
   min-width: 0;
 }
+
 .suggestion-title {
   font-weight: 600;
   color: inherit;
 }
+
 .suggestion-sub {
   font-size: 12px;
   opacity: 0.75;
   color: rgba(255,255,255,0.7);
-}
-.search-suggestions.light .suggestion-sub {
-  color: rgba(0,0,0,0.6);
 }
 
 /* Tooltip for suggestion hover */
@@ -395,26 +401,23 @@
   border-radius: 12px;
   box-shadow: 0 12px 28px rgba(0,0,0,0.45);
   padding: 10px;
-  z-index: 1003;
+  z-index: 5000;
   opacity: 0;
   transform: translateY(4px) scale(0.98);
-  pointer-events: none; /* Avoid blocking clicks */
+  pointer-events: none;
   transition: opacity .15s ease, transform .15s ease;
 }
-.search-suggestions.light .suggestion-tooltip {
-  background: #fff;
-  color: #111;
-  border-color: rgba(0,0,0,0.12);
-  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
-}
+
 .suggestion-tooltip.show {
   opacity: 1;
   transform: translateY(0) scale(1);
 }
+
 .suggestion-tooltip .tooltip-row {
   display: flex;
   gap: 10px;
 }
+
 .suggestion-tooltip .tooltip-poster {
   width: 56px;
   height: 84px;
@@ -423,19 +426,18 @@
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(245, 197, 24, 0.15);
 }
-.search-suggestions.light .suggestion-tooltip .tooltip-poster {
-  background: rgba(0,0,0,0.06);
-  border-color: rgba(0,0,0,0.12);
-}
+
 .suggestion-tooltip .tooltip-content {
   flex: 1;
   min-width: 0;
 }
+
 .suggestion-tooltip .tooltip-title {
   font-weight: 700;
   font-size: 15px;
   margin-bottom: 4px;
 }
+
 .suggestion-tooltip .tooltip-meta {
   display: flex;
   align-items: center;
@@ -444,9 +446,7 @@
   margin-bottom: 6px;
   color: rgba(255,255,255,0.75);
 }
-.search-suggestions.light .suggestion-tooltip .tooltip-meta {
-  color: rgba(0,0,0,0.65);
-}
+
 .suggestion-tooltip .meta-pill {
   display: inline-flex;
   align-items: center;
@@ -457,26 +457,27 @@
   color: #ffd85a;
   border: 1px solid rgba(245, 197, 24, 0.25);
 }
-.search-suggestions.light .suggestion-tooltip .meta-pill {
-  background: rgba(0,0,0,0.06);
-  color: #333;
-  border-color: rgba(0,0,0,0.12);
-}
+
 .suggestion-tooltip .tooltip-overview {
   font-size: 12px;
   line-height: 1.35;
   opacity: 0.9;
 }
 
-/* CSS hover fallback for suggestion tooltip and overflow fix */
-.search-suggestions { overflow-x: visible; }
-
-/* Show tooltip on pure CSS hover with a slight delay; JS timers remain for keyboard focus */
+/* CSS hover fallback + JS tooltip */
 .search-suggestions li .suggestion-tooltip { transition-delay: 0s; }
 .search-suggestions li:hover .suggestion-tooltip { transition-delay: 450ms; opacity: 1; transform: translateY(0) scale(1); }
 
-
-/* --- Tooltip robustness additions --- */
-.navbar__search { overflow: visible; }
-.search-suggestions li { position: relative; }
-.suggestion-tooltip { z-index: 5000; }
+/* Responsive navbar */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 10px 15px;
+  }
+  .navbar__search {
+    margin: 0 10px;
+  }
+  .navbar__menu span {
+    padding: 6px 10px;
+    font-size: 0.9rem;
+  }
+}
