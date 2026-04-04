@@ -2,65 +2,142 @@ import React, { useState, useEffect } from 'react';
 
 const API_BASE = 'http://localhost:5000/api';
 
-export function MentionResolve({ raw, navigate }) {
+/**
+ * Renders a single mention as a premium Bubble.
+ * Supports both legacy (fuzzy) and new (structured) data.
+ */
+export function MentionResolve({ title, type, id, raw, navigate }) {
   const [resolved, setResolved] = useState(null);
-  const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let cancelled = false;
-    async function run() {
+    // If we already have structured data, we can optionally fetch the poster if not provided
+    async function fetchDetails() {
       try {
-        const res = await fetch(`${API_BASE}/movies/mention/resolve?text=${encodeURIComponent(raw)}`);
-        if (!cancelled && res.ok) {
+        const url = id 
+          ? `${API_BASE}/movies/mention/resolve?id=${id}&type=${type}`
+          : `${API_BASE}/movies/mention/resolve?text=${encodeURIComponent(raw)}`;
+        
+        const res = await fetch(url);
+        if (res.ok) {
           const data = await res.json();
           setResolved(data);
         }
-      } catch (_) { /* ignore */ }
-      finally {
-        if (!cancelled) setDone(true);
+      } catch (e) {
+        console.error("Mention resolve error", e);
+      } finally {
+        setLoading(false);
       }
     }
-    run();
-    return () => { cancelled = true; };
-  }, [raw]);
+    fetchDetails();
+  }, [id, type, raw]);
 
-  if (!done || !resolved) {
-    return <>@{raw}</>;
-  }
+  const displayTitle = resolved ? (resolved.title || resolved.name) : (title || raw);
+  const poster = resolved?.poster_path;
+  const linkType = resolved?.type || type || 'movie';
+  const linkId = resolved?.id || id;
 
-  const title = resolved.title || '';
-  const tail = raw.slice(title.length); 
-  const onClick = (e) => {
+  const handleClick = (e) => {
     e.preventDefault();
-    navigate(`/movie/${resolved.id}`);
+    e.stopPropagation();
+    if (linkId) {
+      navigate(`/${linkType}/${linkId}`);
+    }
   };
 
+  if (loading && !title) return <span>@{raw}</span>;
+
+  // If we tried to resolve a legacy mention and got nothing, render as plain text
+  if (!loading && !resolved && !id) {
+    return <span>@{raw}</span>;
+  }
+
+  const posterUrl = poster ? `https://image.tmdb.org/t/p/w92${poster}` : null;
+
   return (
-    <>
-      <span className="mention-link" onClick={onClick} style={{ color: '#007aff', cursor: 'pointer', fontWeight: 'bold' }}>@{title}</span>{tail}
-    </>
+    <span className="mention-bubble" onClick={handleClick}>
+      {posterUrl && <img src={posterUrl} alt="" className="mention-bubble-img" />}
+      <span className="mention-title">{displayTitle}</span>
+      <span className="mention-type-tag">{linkType}</span>
+    </span>
   );
 }
 
+/**
+ * Parses text and replaces @mentions with MentionResolve bubbles.
+ * Supports:
+ * 1. New: @[The Batman](movie:123)
+ * 2. Legacy: @Batman
+ */
 export function renderWithMentions(text, navigate) {
   if (!text) return null;
+
   const parts = [];
-  const regex = /@([A-Za-z0-9][A-Za-z0-9\s:'-]*)/g;
+  // Regex for NEW format: @[Title](type:id)
+  const structuredRegex = /@\[([^\]]+)\]\((movie|series):(\d+)\)/g;
+  // Regex for LEGACY format: @Title (stops at non-word chars except spaces/colons)
+  const legacyRegex = /@([A-Za-z0-9][A-Za-z0-9\s:'-]*[A-Za-z0-9])/g;
+
   let lastIndex = 0;
   let match;
-  while ((match = regex.exec(text)) !== null) {
-    const start = match.index;
-    if (start > lastIndex) {
-      parts.push(text.slice(lastIndex, start));
-    }
-    const raw = match[1];
-    parts.push(
-      <MentionResolve key={`m-${parts.length}-${start}`} raw={raw} navigate={navigate} />
-    );
-    lastIndex = start + match[0].length;
+
+  // Process structured mentions first as they are specific
+  const allMatches = [];
+  
+  // Find all structured matches
+  while ((match = structuredRegex.exec(text)) !== null) {
+    allMatches.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      component: <MentionResolve 
+        key={`struct-${match.index}`}
+        title={match[1]} 
+        type={match[2]} 
+        id={match[3]} 
+        navigate={navigate} 
+      />
+    });
   }
+
+  // Find all legacy matches that don't overlap with structured ones
+  legacyRegex.lastIndex = 0;
+  while ((match = legacyRegex.exec(text)) !== null) {
+      const start = match.index;
+      const end = match.index + match[0].length;
+      const rawMatch = match[1];
+      
+      const isOverlapped = allMatches.some(m => 
+          (start >= m.start && start < m.end) ||
+          (end > m.start && end <= m.end)
+      );
+      if (!isOverlapped) {
+          allMatches.push({
+              start,
+              end,
+              component: <MentionResolve 
+                key={`leg-${start}`}
+                raw={rawMatch} 
+                navigate={navigate} 
+              />
+          });
+      }
+  }
+
+  // Sort matches by position
+  allMatches.sort((a, b) => a.start - b.start);
+
+  // Build the parts array
+  allMatches.forEach(m => {
+    if (m.start > lastIndex) {
+      parts.push(text.slice(lastIndex, m.start));
+    }
+    parts.push(m.component);
+    lastIndex = m.end;
+  });
+
   if (lastIndex < text.length) {
     parts.push(text.slice(lastIndex));
   }
+
   return parts;
 }

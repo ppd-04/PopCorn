@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { renderWithMentions } from '../../utils/MentionsUtil';
+import MentionInput from './MentionInput';
 import './Social.css';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -148,15 +149,15 @@ function DiscussionRoom({ user }) {
                 {/* Input Area */}
                 {user ? (
                     <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(10,10,15,0.95)', display: 'flex', gap: '15px' }}>
-                        <input 
-                            type="text" 
+                        <MentionInput 
                             placeholder="Share your thoughts... Use @ to tag movies!"
                             value={input}
-                            onChange={e => setInput(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                            onChange={v => setInput(v)}
+                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault() || sendMessage())}
+                            className="create-post-textarea"
                             style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '25px', padding: '15px 25px', color: 'white', outline: 'none' }}
                         />
-                        <button onClick={sendMessage} style={{ background: 'linear-gradient(45deg, #f5c518, #e6b800)', color: 'black', border: 'none', borderRadius: '25px', padding: '0 30px', fontWeight: 'bold', cursor: 'pointer' }}>
+                        <button onClick={sendMessage} style={{ background: 'linear-gradient(45deg, #f5c518, #e6b800)', color: 'black', border: 'none', borderRadius: '25px', padding: '0 30px', fontWeight: 'bold', cursor: 'pointer', height: '54px' }}>
                             Send
                         </button>
                     </div>

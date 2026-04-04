@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { renderWithMentions } from '../../utils/MentionsUtil';
+import MentionInput from './MentionInput';
 import './Social.css';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -140,15 +141,16 @@ function MessengerPanel({ user, isOpen, onClose }) {
                             })}
                             <div ref={messagesEndRef} />
                         </div>
-                        <div className="messenger-input-area">
-                            <input 
-                                type="text"
+                        <div className="messenger-input-area" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                            <MentionInput 
                                 placeholder="Type a message... Use @ to mention movies!"
                                 value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+                                onChange={(v) => setInput(v)}
+                                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault() || sendMessage())}
+                                className="comment-input"
+                                style={{ flex: 1 }}
                             />
-                            <button onClick={sendMessage}>Send</button>
+                            <button onClick={sendMessage} style={{ height: '44px' }}>Send</button>
                         </div>
                     </div>
                 )}

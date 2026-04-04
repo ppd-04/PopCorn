@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { renderWithMentions } from '../../utils/MentionsUtil';
+import MentionInput from './MentionInput';
 import { supabase } from '../../supabaseClient';
 import SuggestedFriends from './SuggestedFriends';
 import './Social.css';
@@ -332,11 +333,11 @@ function CreatePost({ user, onPostCreated }) {
                 <div className="create-post-avatar">
                     {user.profile_picture ? <img src={user.profile_picture} alt="Avatar" /> : user.username.charAt(0).toUpperCase()}
                 </div>
-                <textarea
+                <MentionInput
                     className="create-post-textarea"
                     placeholder="Share a thought… Tag movies with @"
                     value={content}
-                    onChange={e => setContent(e.target.value)}
+                    onChange={v => setContent(v)}
                 />
             </div>
             {imagePreview && (
@@ -465,7 +466,12 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
 
             {editing ? (
                 <>
-                    <textarea className="post-edit-area" value={editContent} onChange={e => setEditContent(e.target.value)} autoFocus />
+                    <MentionInput 
+                        className="post-edit-area" 
+                        value={editContent} 
+                        onChange={v => setEditContent(v)} 
+                        autoFocus 
+                    />
                     <div className="post-edit-actions">
                         <button className="edit-save-btn" onClick={handleEdit}>Save</button>
                         <button className="edit-cancel-btn" onClick={() => setEditing(false)}>Cancel</button>
@@ -512,9 +518,11 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
                     ))}
                     {user && (
                         <div className="add-comment-form">
-                            <input
-                                type="text" className="comment-input" placeholder="Add a comment…"
-                                value={newComment} onChange={e => setNewComment(e.target.value)}
+                            <MentionInput
+                                className="comment-input" 
+                                placeholder="Add a comment…"
+                                value={newComment} 
+                                onChange={v => setNewComment(v)}
                                 onKeyDown={e => e.key === 'Enter' && submitComment()}
                             />
                             <button className="comment-submit-btn" disabled={!newComment.trim()} onClick={submitComment}>➤</button>

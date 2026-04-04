@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { renderWithMentions } from '../utils/MentionsUtil';
+import MentionInput from './Social/MentionInput';
 import { supabase } from '../supabaseClient';
 import MovieTrailer from './MovieTrailer';
 import './MovieDetails.css';
@@ -375,11 +377,11 @@ const MovieDetails = ({ user }) => {
               ) : '👤'}
             </div>
             <div className="md-comment-input-wrap">
-              <textarea
+              <MentionInput
                 className="md-comment-input"
                 placeholder={user ? "Share your thoughts about this movie..." : "Log in to share your thoughts..."}
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={(v) => setNewComment(v)}
                 disabled={submittingComment}
               />
               <button
@@ -404,7 +406,7 @@ const MovieDetails = ({ user }) => {
                 </div>
                 <div className="md-comment-bubble">
                   <div className="md-comment-author">{comment.full_name || comment.username}</div>
-                  <div className="md-comment-text">{comment.content}</div>
+                  <div className="md-comment-text">{renderWithMentions(comment.content, (path) => window.location.href = path)}</div>
                   <div className="md-comment-footer">
                     <span className="md-comment-time">{timeAgo(comment.created_at)}</span>
                     {user && user.id === comment.user_id && (
