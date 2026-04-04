@@ -520,7 +520,7 @@ const ProfilePage = ({ user, setUser }) => {
     return (
       <div className="profile-tab-content">
         <h2 className="tab-section-title">🌟 Favourite People ({favouritePeople.length})</h2>
-        
+
         {favouritePeople.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">🌟</div>
@@ -557,8 +557,8 @@ const ProfilePage = ({ user, setUser }) => {
               </div>
               <h4>{person.person_name}</h4>
               <div className="person-role">{person.person_role}</div>
-              <button 
-                className="unfollow-btn" 
+              <button
+                className="unfollow-btn"
                 style={{ borderColor: 'var(--accent)', color: 'var(--accent)', background: 'rgba(245, 197, 24, 0.1)' }}
                 onClick={() => handleFollowPerson(person)}
               >
@@ -728,14 +728,14 @@ const ProfilePage = ({ user, setUser }) => {
         )}
 
         {(!stats.genre_distribution || stats.genre_distribution.length === 0) &&
-         (!stats.rating_distribution || stats.rating_distribution.length === 0) &&
-         (!stats.monthly_activity || stats.monthly_activity.length === 0) && (
-          <div className="empty-state">
-            <div className="empty-state-icon">📊</div>
-            <h3>No data yet</h3>
-            <p>Start watching and rating movies to see your stats!</p>
-          </div>
-        )}
+          (!stats.rating_distribution || stats.rating_distribution.length === 0) &&
+          (!stats.monthly_activity || stats.monthly_activity.length === 0) && (
+            <div className="empty-state">
+              <div className="empty-state-icon">📊</div>
+              <h3>No data yet</h3>
+              <p>Start watching and rating movies to see your stats!</p>
+            </div>
+          )}
       </div>
     );
   };
@@ -902,9 +902,9 @@ const ProfilePage = ({ user, setUser }) => {
         <div className="profile-header">
           <div className="profile-avatar-large">
             {(profile?.profile_picture || user?.profile_picture) ? (
-              <img 
-                src={profile?.profile_picture || user?.profile_picture} 
-                alt={profile?.full_name || profile?.username || user?.username} 
+              <img
+                src={profile?.profile_picture || user?.profile_picture}
+                alt={profile?.full_name || profile?.username || user?.username}
               />
             ) : (
               (profile?.username || user?.username || '?').charAt(0).toUpperCase()
@@ -917,8 +917,8 @@ const ProfilePage = ({ user, setUser }) => {
             </div>
             <div className="profile-join-date">
               {/* CHANGE: Added user fallback for created_at date */}
-              🎬 Member since {(profile?.created_at || user?.created_at) 
-                ? new Date(profile?.created_at || user?.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' }) 
+              🎬 Member since {(profile?.created_at || user?.created_at)
+                ? new Date(profile?.created_at || user?.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
                 : 'Unknown'}
             </div>
             {stats && (
