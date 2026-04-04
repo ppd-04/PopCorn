@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { renderWithMentions } from '../../utils/MentionsUtil';
+import { supabase } from '../../supabaseClient';
 import './Social.css';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -316,14 +317,18 @@ function CreateDiscussionModal({ user, onClose, onCreated, navigate }) {
     const [searchQ, setSearchQ] = useState('');
     const [selectedMovie, setSelectedMovie] = useState(null);
 
-    // Live search movies to anchor the discussion
+    // Live search local database movies to anchor the discussion
     useEffect(() => {
         if(searchQ.length < 2) return setMovies([]);
         const to = setTimeout(async () => {
-            const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=ca1ddfce17fe68aa80ce1489069d2eb0&query=${encodeURIComponent(searchQ)}`);
-            if(res.ok) {
-                const json = await res.json();
-                setMovies(json.results.slice(0, 5));
+            const { data, error } = await supabase
+                .from('movies')
+                .select('id, title, poster_path, release_date')
+                .ilike('title', `%${searchQ}%`)
+                .limit(5);
+            
+            if(!error && data) {
+                setMovies(data);
             }
         }, 300);
         return () => clearTimeout(to);
@@ -345,8 +350,14 @@ function CreateDiscussionModal({ user, onClose, onCreated, navigate }) {
                 onCreated();
                 onClose();
                 navigate(`/social/discussion/${group.id}`);
+            } else {
+                const errorData = await res.json();
+                alert(`Error: ${errorData.error || 'Failed to create room'}`);
             }
-        } catch(e) { console.error(e); }
+        } catch(e) { 
+            console.error(e); 
+            alert('Something went wrong while creating the room.');
+        }
     };
 
     return (
@@ -360,7 +371,7 @@ function CreateDiscussionModal({ user, onClose, onCreated, navigate }) {
                 <label style={{ display: 'block', margin: '15px 0 5px' }}>Select Movie Topic</label>
                 {!selectedMovie ? (
                     <div>
-                        <input type="text" className="create-post-textarea" value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search TMDB for a movie..." />
+                        <input type="text" className="create-post-textarea" value={searchQ} onChange={e=>setSearchQ(e.target.value)} placeholder="Search for a movie in the database..." />
                         {movies.map(m => (
                             <div key={m.id} style={{ display: 'flex', padding: '10px', background: 'rgba(255,255,255,0.05)', cursor: 'pointer', margin: '5px 0', borderRadius: '8px' }} onClick={() => setSelectedMovie(m)}>
                                 {m.poster_path && <img src={`https://image.tmdb.org/t/p/w92${m.poster_path}`} alt="" style={{width: '30px', marginRight: '10px'}}/>}

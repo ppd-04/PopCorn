@@ -1833,7 +1833,7 @@ app.get('/api/discussions/feed', authenticateToken, async (req, res) => {
             SELECT d.*, u.username as creator_username, m.title as movie_title, m.poster_path
             FROM discussions d
             JOIN users u ON d.creator_id = u.user_id
-            LEFT JOIN movies m ON d.movie_id = m.movie_id
+            LEFT JOIN movies m ON d.movie_id = m.id
             WHERE d.access_level = 'public' 
                OR d.creator_id = $1 
                OR EXISTS (SELECT 1 FROM discussion_participants dp WHERE dp.discussion_id = d.id AND dp.user_id = $1)
@@ -1872,7 +1872,7 @@ app.get('/api/discussions/:id', authenticateToken, async (req, res) => {
     try {
         const dRes = await pool.query(`
             SELECT d.*, m.title as movie_title, m.poster_path 
-            FROM discussions d LEFT JOIN movies m ON d.movie_id = m.movie_id WHERE id = $1
+            FROM discussions d LEFT JOIN movies m ON d.movie_id = m.id WHERE d.id = $1
         `, [req.params.id]);
         if (dRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
         
