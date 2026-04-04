@@ -144,19 +144,19 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
         const movieMatch = text.match(movieRegex);
         if (movieMatch) {
             const rawTitles = movieMatch[1].trim();
-            // Clean up titles (handle potential backticks or unnecessary formatting)
+            // cleaming up
             const movieTitles = rawTitles.split(',')
                 .map(t => t.trim().replace(/^['"`]+|['"`]+$/g, ''))
                 .filter(t => t.length > 0);
 
-            // Remove the signature from the text response
+            // sign shorailam
             text = text.replace(movieRegex, '').trim();
 
             if (movieTitles.length > 0) {
                 try {
-                    // Safe, enforced SQL query: SELECT by exact titles
+                    // gadha model er jonno query ami e likhe disi jor kore o khali naam dibe
                     const placeholders = movieTitles.map((_, index) => `$${index + 1}`).join(', ');
-                    const safeQuery = `SELECT id, title, poster_path, vote_average FROM movies WHERE title IN (${placeholders})`;
+                    const safeQuery = `select id, title, poster_path, vote_average from movies where title in (${placeholders})`;
                     const result = await pool.query(safeQuery, movieTitles);
                     suggestedMovies = result.rows;
                     console.log(`[Chat] Enforced search for titles: ${movieTitles.join(', ')} -> Found ${suggestedMovies.length} movies.`);

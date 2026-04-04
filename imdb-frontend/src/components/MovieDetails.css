@@ -1,7 +1,8 @@
 .md-page {
   padding-top: 80px;
   min-height: 100vh;
-  background: linear-gradient(180deg, #0a0a0a 0%, #111 100%);
+  /* Replaced the solid gradient with a fallback color so the React inline image works seamlessly */
+  background-color: #0a0a0a;
   color: white;
 }
 
@@ -127,12 +128,14 @@
 
 /* ========== RATING SECTION ========== */
 .md-rating-section {
-  background: rgba(20, 20, 25, 0.95);
+  /* Lowered opacity and added webkit support for glass effect */
+  background: rgba(20, 20, 25, 0.4);
   border: 1px solid rgba(245, 197, 24, 0.15);
   border-radius: 18px;
   padding: 24px;
   margin-bottom: 24px;
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .md-rating-header {
@@ -242,10 +245,13 @@
 }
 
 .md-detail-item {
-  background: rgba(255, 255, 255, 0.04);
+  /* Added darker transparent background and blur */
+  background: rgba(0, 0, 0, 0.4);
   border-radius: 12px;
   padding: 14px 18px;
   border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .md-detail-label {
@@ -312,7 +318,8 @@
 
 .md-comment-input {
   width: 100%;
-  background: rgba(255, 255, 255, 0.06);
+  /* Added darker transparent background and blur */
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   padding: 14px 18px;
@@ -323,6 +330,8 @@
   min-height: 60px;
   transition: all 0.2s ease;
   box-sizing: border-box;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .md-comment-input::placeholder {
@@ -389,10 +398,13 @@
 }
 
 .md-comment-bubble {
-  background: rgba(255, 255, 255, 0.05);
+  /* Added darker transparent background and blur */
+  background: rgba(0, 0, 0, 0.4);
   border-radius: 14px;
   padding: 14px 18px;
   flex: 1;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .md-comment-author {
@@ -478,9 +490,12 @@
   color: inherit;
   border-radius: 12px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  /* Added darker transparent background and blur */
+  background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.06);
   transition: all 0.25s ease;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .md-related-card:hover {
