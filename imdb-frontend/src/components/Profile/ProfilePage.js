@@ -205,16 +205,34 @@ const ProfilePage = ({ user, setUser }) => {
   };
 
   const handleUnfollowPerson = async (personId) => {
+    const previousPeople = [...favouritePeople];
+    setFavouritePeople(prev => prev.filter(p => String(p.person_id) !== String(personId)));
+
     try {
       const res = await fetch(`${API_BASE}/people/${personId}/follow`, {
         method: 'POST',
         headers: authHeaders()
       });
-      if (res.ok) fetchFavouritePeople();
-    } catch (err) { console.error(err); }
+      if (!res.ok) {
+        setFavouritePeople(previousPeople);
+      }
+    } catch (err) {
+      console.error(err);
+      setFavouritePeople(previousPeople);
+    }
   };
 
   const handleFollowPerson = async (person) => {
+    const previousPeople = [...favouritePeople];
+    const newPersonObj = {
+      person_id: person.person_id,
+      person_name: person.person_name,
+      person_role: person.person_role,
+      profile_path: person.profile_path,
+      created_at: new Date().toISOString()
+    };
+    setFavouritePeople(prev => [newPersonObj, ...prev]);
+
     try {
       const res = await fetch(`${API_BASE}/people/${person.person_id}/follow`, {
         method: 'POST',
@@ -225,8 +243,13 @@ const ProfilePage = ({ user, setUser }) => {
           profile_path: person.profile_path
         })
       });
-      if (res.ok) fetchFavouritePeople();
-    } catch (err) { console.error(err); }
+      if (!res.ok) {
+        setFavouritePeople(previousPeople);
+      }
+    } catch (err) {
+      console.error(err);
+      setFavouritePeople(previousPeople);
+    }
   };
 
   const handleToggleGenre = (genreId) => {
@@ -515,7 +538,7 @@ const ProfilePage = ({ user, setUser }) => {
       { person_id: 138, person_name: 'Quentin Tarantino', person_role: 'Director', profile_path: '/qE1iXyVwY3i36PZ0iB2XqVnBEvC.jpg' }
     ];
 
-    const isFollowing = (id) => favouritePeople.some(p => p.person_id === id);
+    const isFollowing = (personId) => favouritePeople.some(p => String(p.person_id) === String(personId));
 
     return (
       <div className="profile-tab-content">
@@ -531,12 +554,17 @@ const ProfilePage = ({ user, setUser }) => {
           <div className="people-grid">
             {favouritePeople.map(person => (
               <div key={person.person_id} className="person-card">
-                <div className="person-avatar">
-                  {person.profile_path ? (
-                    <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.person_name} />
-                  ) : '👤'}
-                </div>
-                <h4>{person.person_name}</h4>
+                <Link to={`/person/${person.person_id}`} style={{textDecoration: 'none', color: 'inherit'}}>
+                  <div className="person-avatar">
+                    {person.profile_path ? (
+                      <img 
+                        src={String(person.profile_path).startsWith('http') ? person.profile_path : `https://image.tmdb.org/t/p/w185${person.profile_path}`} 
+                        alt={person.person_name} 
+                      />
+                    ) : '👤'}
+                  </div>
+                  <h4>{person.person_name}</h4>
+                </Link>
                 <div className="person-role">{person.person_role || 'Artist'}</div>
                 <button className="unfollow-btn" onClick={() => handleUnfollowPerson(person.person_id)}>
                   Unfollow
@@ -550,12 +578,17 @@ const ProfilePage = ({ user, setUser }) => {
         <div className="people-grid">
           {suggestedPeople.filter(p => !isFollowing(p.person_id)).map(person => (
             <div key={person.person_id} className="person-card" style={{ opacity: 0.8 }}>
-              <div className="person-avatar">
-                {person.profile_path ? (
-                  <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.person_name} />
-                ) : '👤'}
-              </div>
-              <h4>{person.person_name}</h4>
+              <Link to={`/person/${person.person_id}`} style={{textDecoration: 'none', color: 'inherit'}}>
+                <div className="person-avatar">
+                  {person.profile_path ? (
+                    <img 
+                      src={person.profile_path.startsWith('http') ? person.profile_path : `https://image.tmdb.org/t/p/w185${person.profile_path}`} 
+                      alt={person.person_name} 
+                    />
+                  ) : '👤'}
+                </div>
+                <h4>{person.person_name}</h4>
+              </Link>
               <div className="person-role">{person.person_role}</div>
               <button
                 className="unfollow-btn"

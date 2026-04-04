@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
+import { Link } from 'react-router-dom';
 import './CrewsPage.css';
 
 function CrewsPage() {
@@ -145,7 +146,7 @@ function CrewsPage() {
                 : null;
 
               return (
-                <div key={person.id} className="crew-card">
+                <Link to={`/person/${person.id}`} key={person.id} className="crew-card" style={{textDecoration: 'none', color: 'inherit'}}>
                   <div className="crew-photo">
                     {photoUrl ? (
                       <img src={photoUrl} alt={person.name} />
@@ -166,7 +167,7 @@ function CrewsPage() {
                       <span className="crew-department">{person.known_for_department}</span>
                     )}
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>

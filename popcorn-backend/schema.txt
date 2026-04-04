@@ -1,28 +1,5 @@
-TABLES: movies, direct_messages, discussions, discussion_participants, movie_ratings, genres, discussion_messages, discussion_invites, user_chat_messages, movie_genres, movie_comments, user_favourites, user_watched, user_ai_cache, users, profiles, wishlist, admin, awards, series, episodes, history, social_posts, preferenceprofile, forum_post, content, review, directors, seasons, watchlist, post_comments, post_likes, favourite_people, user_interests, user_activity, movie_cast, friend_requests, notifications, serieses, archived_user_history, people, season, episode
+TABLES: direct_messages, discussions, discussion_participants, movie_ratings, genres, discussion_messages, discussion_invites, series_ratings, user_chat_messages, movie_genres, movie_comments, user_favourites, user_watched, user_ai_cache, users, profiles, wishlist, admin, awards, series, episodes, history, social_posts, preferenceprofile, forum_post, content, review, directors, seasons, watchlist, post_comments, post_likes, favourite_people, user_interests, user_activity, admin_activity_logs, series_comments, movie_cast, friend_requests, notifications, serieses, archived_user_history, people, season, episode, user_series_watchlist, user_series_favourites, user_series_watched, reports, email_otps, movies
 
-
-Table movies:
-  updated_at (timestamp with time zone)
-  tmdb_id (integer)
-  popularity (real)
-  adult (boolean)
-  video (boolean)
-  runtime (integer)
-  budget (bigint)
-  revenue (bigint)
-  created_at (timestamp with time zone)
-  id (bigint)
-  release_date (date)
-  vote_average (numeric)
-  vote_count (integer)
-  title (text)
-  original_title (text)
-  overview (text)
-  tagline (text)
-  original_language (text)
-  poster_path (text)
-  backdrop_path (text)
-  status (text)
 
 Table direct_messages:
   id (integer)
@@ -72,6 +49,13 @@ Table discussion_invites:
   created_at (timestamp with time zone)
   status (character varying)
 
+Table series_ratings:
+  rating_id (integer)
+  series_id (integer)
+  user_id (integer)
+  rating (numeric)
+  created_at (timestamp without time zone)
+
 Table user_chat_messages:
   id (integer)
   user_id (integer)
@@ -110,6 +94,7 @@ Table user_ai_cache:
 
 Table users:
   is_anonymous (boolean)
+  instance_id (uuid)
   id (uuid)
   email_confirmed_at (timestamp with time zone)
   invited_at (timestamp with time zone)
@@ -134,17 +119,23 @@ Table users:
   date_joined (date)
   date_of_birth (date)
   is_admin (boolean)
-  instance_id (uuid)
+  is_verified (boolean)
+  is_super_admin (boolean)
+  banned_until (timestamp with time zone)
   username (character varying)
   password (character varying)
   email (character varying)
-  recovery_token (character varying)
+  phone (text)
   full_name (character varying)
-  phone_change (text)
+  confirmation_token (character varying)
   gender (character varying)
   phone_number (character varying)
   address (text)
   profile_picture (text)
+  reauthentication_token (character varying)
+  recovery_token (character varying)
+  verification_token (text)
+  phone_change (text)
   email_change_token_new (character varying)
   email_change (character varying)
   phone_change_token (character varying)
@@ -153,9 +144,6 @@ Table users:
   email (character varying)
   encrypted_password (character varying)
   email_change_token_current (character varying)
-  phone (text)
-  confirmation_token (character varying)
-  reauthentication_token (character varying)
 
 Table profiles:
   id (uuid)
@@ -293,6 +281,23 @@ Table user_activity:
   activity_type (character varying)
   details (text)
 
+Table admin_activity_logs:
+  target_id (integer)
+  admin_id (integer)
+  created_at (timestamp with time zone)
+  log_id (integer)
+  target_entity (character varying)
+  action_type (character varying)
+  details (text)
+
+Table series_comments:
+  comment_id (integer)
+  series_id (integer)
+  user_id (integer)
+  created_at (timestamp without time zone)
+  updated_at (timestamp without time zone)
+  content (text)
+
 Table movie_cast:
   movie_id (integer)
   person_id (integer)
@@ -328,8 +333,8 @@ Table serieses:
   in_production (boolean)
   number_of_seasons (integer)
   number_of_episodes (integer)
-  homepage (text)
-  poster_path (text)
+  tmdb_vote_average (numeric)
+  tmdb_vote_count (integer)
   backdrop_path (text)
   name (text)
   original_name (text)
@@ -339,6 +344,8 @@ Table serieses:
   original_language (text)
   genres (ARRAY)
   created_by (ARRAY)
+  homepage (text)
+  poster_path (text)
 
 Table archived_user_history:
   archive_id (integer)
@@ -384,3 +391,61 @@ Table episode:
   name (text)
   overview (text)
   still_path (text)
+
+Table user_series_watchlist:
+  id (integer)
+  user_id (integer)
+  series_id (integer)
+  created_at (timestamp without time zone)
+
+Table user_series_favourites:
+  id (integer)
+  user_id (integer)
+  series_id (integer)
+  created_at (timestamp without time zone)
+
+Table user_series_watched:
+  id (integer)
+  user_id (integer)
+  series_id (integer)
+  created_at (timestamp without time zone)
+
+Table reports:
+  comment_id (integer)
+  reporter_id (integer)
+  post_id (integer)
+  id (integer)
+  created_at (timestamp with time zone)
+  status (character varying)
+  reason (text)
+
+Table email_otps:
+  expires_at (timestamp without time zone)
+  created_at (timestamp without time zone)
+  email (character varying)
+  otp_code (character varying)
+
+Table movies:
+  tmdb_vote_count (integer)
+  tmdb_id (integer)
+  video (boolean)
+  runtime (integer)
+  budget (bigint)
+  revenue (bigint)
+  created_at (timestamp with time zone)
+  updated_at (timestamp with time zone)
+  tmdb_vote_average (numeric)
+  id (bigint)
+  release_date (date)
+  vote_average (numeric)
+  vote_count (integer)
+  popularity (real)
+  adult (boolean)
+  title (text)
+  original_title (text)
+  overview (text)
+  tagline (text)
+  original_language (text)
+  poster_path (text)
+  backdrop_path (text)
+  status (text)

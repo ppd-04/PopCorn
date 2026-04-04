@@ -20,6 +20,7 @@ import PeopleSearch from './components/Social/PeopleSearch';
 import DiscussionRoom from './components/Social/DiscussionRoom';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import CrewsPage from './components/Crews/CrewsPage';
+import PersonDetails from './components/Crews/PersonDetails';
 import GenreRows from './components/Home/GenreRows';
 import TrailerRow from './components/Home/TrailerRow';
 
@@ -184,6 +185,7 @@ function App() {
             <Route path="/user/:id" element={<PublicProfile currentUser={user} />} />
             <Route path="/people" element={<PeopleSearch />} />
             <Route path="/crews" element={<CrewsPage />} />
+            <Route path="/person/:id" element={<PersonDetails />} />
 
             <Route path="/profile" element={
               <ProtectedRoute>

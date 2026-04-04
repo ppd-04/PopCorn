@@ -7,6 +7,7 @@ const BrowsePage = ({ user }) => {
   const [collaborative, setCollaborative] = useState([]);
   const [foryou, setForyou] = useState([]);
   const [related, setRelated] = useState([]);
+  const [favoritePeopleMovies, setFavoritePeopleMovies] = useState([]);
   const [aiRecs, setAiRecs] = useState([]);
   const [anchorTitle, setAnchorTitle] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -82,6 +83,15 @@ const BrowsePage = ({ user }) => {
           const data = await foryouRes.json();
           console.log(`[Browse] ForYou received: ${data.length} movies.`);
           setForyou(shuffleArray(data));
+        }
+
+        if (token) {
+          const favPeopleRes = await fetch(`http://localhost:5000/api/browse/favorite-people-movies?t=${timestamp}`, { headers });
+          if (favPeopleRes.ok) {
+            const data = await favPeopleRes.json();
+            console.log(`[Browse] Favorite People Movies received: ${data.length} movies.`);
+            setFavoritePeopleMovies(data);
+          }
         }
 
         // Because You Liked: Anchor-based recs
@@ -316,6 +326,36 @@ const BrowsePage = ({ user }) => {
               ))}
             </div>
 
+          </div>
+        )}
+
+        {/* Row 0.5: From Your Favourite People */}
+        {favoritePeopleMovies.length > 0 && (
+          <div className="recommendation-row">
+            <div className="row-header">
+              <h2 className="row-title" style={{color: '#f5c518'}}>⭐ From Your Favourite People</h2>
+              <div className="row-line"></div>
+            </div>
+            <div className="horizontal-slider">
+              {favoritePeopleMovies.map((movie) => (
+                <div key={movie.id} className="movie-poster-card" onClick={() => navigate(`/movie/${movie.id}`)}>
+                  <div className="poster-inner">
+                    <img
+                      src={movie.poster_path ? `https://image.tmdb.org/t/p/w500${movie.poster_path}` : 'https://via.placeholder.com/500x750?text=PopCorn'}
+                      alt={movie.title}
+                      loading="lazy"
+                    />
+                    <div className="poster-overlay">
+                      <div className="overlay-info">
+                        <span className="overlay-rating">⭐ {Number(movie.vote_average)?.toFixed(1)}</span>
+                        <div className="overlay-play">▶</div>
+                      </div>
+                    </div>
+                  </div>
+                  <h3 className="card-movie-title">{movie.title}</h3>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

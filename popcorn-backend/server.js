@@ -2587,14 +2587,14 @@ app.post('/api/admin/movies', authenticateAdmin, async (req, res) => {
         const check = await pool.query('SELECT tmdb_id FROM movies WHERE tmdb_id = $1', [tmdb_id]);
         if (check.rows.length > 0) {
             await pool.query(
-                `UPDATE movies SET title = $2, original_title = $3, overview = $4, release_date = $5, poster_path = $6, backdrop_path = $7, popularity = $8, vote_average = $9, vote_count = $10, original_language = $11 WHERE tmdb_id = $1`,
+                `UPDATE movies SET title = $2, original_title = $3, overview = $4, release_date = $5, poster_path = $6, backdrop_path = $7, popularity = $8, vote_average = $9, vote_count = $10, tmdb_vote_average = $9, tmdb_vote_count = $10, original_language = $11 WHERE tmdb_id = $1`,
                 [tmdb_id, title, original_title, overview, release_date || null, poster_path, backdrop_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         } else {
             await pool.query(
                 `INSERT INTO movies 
-                (tmdb_id, title, original_title, overview, release_date, poster_path, backdrop_path, popularity, vote_average, vote_count, original_language, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())`,
+                (tmdb_id, title, original_title, overview, release_date, poster_path, backdrop_path, popularity, vote_average, vote_count, tmdb_vote_average, tmdb_vote_count, original_language, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $10, $11, NOW())`,
                 [tmdb_id, title, original_title, overview, release_date || null, poster_path, backdrop_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         }
@@ -2611,14 +2611,14 @@ app.post('/api/admin/series', authenticateAdmin, async (req, res) => {
         const check = await pool.query('SELECT tmdb_id FROM serieses WHERE tmdb_id = $1', [tmdb_id]);
         if (check.rows.length > 0) {
             await pool.query(
-                `UPDATE serieses SET name = $2, original_name = $3, overview = $4, first_air_date = $5, poster_path = $6, popularity = $7, vote_average = $8, vote_count = $9, original_language = $10 WHERE tmdb_id = $1`,
+                `UPDATE serieses SET name = $2, original_name = $3, overview = $4, first_air_date = $5, poster_path = $6, popularity = $7, vote_average = $8, vote_count = $9, tmdb_vote_average = $8, tmdb_vote_count = $9, original_language = $10 WHERE tmdb_id = $1`,
                 [tmdb_id, name, original_name, overview, first_air_date || null, poster_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         } else {
             await pool.query(
                 `INSERT INTO serieses 
-                (tmdb_id, name, original_name, overview, first_air_date, poster_path, popularity, vote_average, vote_count, original_language)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                (tmdb_id, name, original_name, overview, first_air_date, poster_path, popularity, vote_average, vote_count, tmdb_vote_average, tmdb_vote_count, original_language)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $8, $9, $10)`,
                 [tmdb_id, name, original_name, overview, first_air_date || null, poster_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         }
@@ -2810,6 +2810,120 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('A user disconnected:', socket.id);
     });
+});
+
+// ==========================================
+// ACTOR & FAVOURITE PEOPLE ROUTES
+// ==========================================
+
+app.get('/api/person/:id', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM people WHERE id = $1', [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Person not found' });
+        const person = result.rows[0];
+
+        // Check follow status if user is authenticated
+        const authHeader = req.headers['authorization'];
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            try {
+                const token = authHeader.split(' ')[1];
+                const jwt = require('jsonwebtoken');
+                const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                const followCheck = await pool.query(
+                    'SELECT 1 FROM favourite_people WHERE user_id = $1 AND person_id = $2 LIMIT 1',
+                    [decoded.userId, req.params.id]
+                );
+                person.is_following = followCheck.rows.length > 0;
+            } catch (e) {
+                person.is_following = false;
+            }
+        } else {
+            person.is_following = false;
+        }
+
+        res.json(person);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/person/:id/movies', async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT m.*, mc.character 
+            FROM movies m 
+            JOIN movie_cast mc ON m.id = mc.movie_id 
+            WHERE mc.person_id = $1 
+            ORDER BY m.popularity DESC NULLS LAST
+        `, [req.params.id]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/people/:id/follow', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const personId = req.params.id;
+        const { person_name, person_role, profile_path } = req.body;
+        
+        const check = await pool.query('SELECT * FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+        if (check.rows.length > 0) {
+            await pool.query('DELETE FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+            return res.json({ status: 'unfollowed', following: false });
+        } else {
+            await pool.query(
+                'INSERT INTO favourite_people (user_id, person_id, person_name, person_role, profile_path, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+                [userId, personId, person_name || 'Artist', person_role || 'Actor', profile_path || null]
+            );
+            return res.json({ status: 'followed', following: true });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Dedicated endpoint to check if user follows a specific person
+app.get('/api/people/:id/follow-status', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.user.userId;
+        const personId = req.params.id;
+        const result = await pool.query(
+            'SELECT 1 FROM favourite_people WHERE user_id = $1 AND person_id = $2 LIMIT 1',
+            [userId, personId]
+        );
+        res.json({ following: result.rows.length > 0 });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/profile/favourite-people', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM favourite_people WHERE user_id = $1 ORDER BY created_at DESC', [req.user.userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/browse/favorite-people-movies', optionalAuthenticate, async (req, res) => {
+    try {
+        const userId = req.user ? req.user.userId : null;
+        if (!userId) return res.json([]);
+        const result = await pool.query(`
+            SELECT DISTINCT m.*
+            FROM movies m
+            JOIN movie_cast mc ON m.id = mc.movie_id
+            JOIN favourite_people f ON mc.person_id = f.person_id
+            WHERE f.user_id = $1
+            ORDER BY m.popularity DESC NULLS LAST LIMIT 20
+        `, [userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 server.listen(PORT, () => {
