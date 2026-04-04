@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import io from 'socket.io-client';
 
 function NotificationsDropdown({ theme }) {
     const [notifications, setNotifications] = useState([]);
@@ -11,11 +12,14 @@ function NotificationsDropdown({ theme }) {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const res = await fetch('http://localhost:5000/api/notifications', {
+            // Using the same base pattern as other components
+            const base = 'http://localhost:5000/api';
+            const res = await fetch(`${base}/notifications`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (res.ok) {
-                setNotifications(await res.json());
+                const data = await res.json();
+                setNotifications(data);
             }
         } catch (err) {
             console.error("Failed to fetch notifications", err);
@@ -24,9 +28,26 @@ function NotificationsDropdown({ theme }) {
 
     useEffect(() => {
         fetchNotifications();
-        // Poll every 30 seconds for new notifications
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
+        
+        // Real-time support via Socket.io
+        const socket = io('http://localhost:5000');
+        const userData = localStorage.getItem('user');
+        if (userData) {
+            const user = JSON.parse(userData);
+            const userId = user.id || user.user_id;
+            socket.emit('join_discussion', `user_${userId}`); // reusing join for private room
+            
+            socket.on('new_notification', (notif) => {
+                console.log("New notification received via socket:", notif);
+                setNotifications(prev => [notif, ...prev]);
+            });
+        }
+
+        const interval = setInterval(fetchNotifications, 60000); // Poll less frequently now with sockets
+        return () => {
+            clearInterval(interval);
+            socket.disconnect();
+        };
     }, []);
 
     useEffect(() => {
@@ -42,7 +63,8 @@ function NotificationsDropdown({ theme }) {
     const markAsRead = async (id) => {
         try {
             const token = localStorage.getItem('token');
-            const res = await fetch(`http://localhost:5000/api/notifications/${id}/read`, {
+            const base = 'http://localhost:5000/api';
+            const res = await fetch(`${base}/notifications/${id}/read`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -57,8 +79,9 @@ function NotificationsDropdown({ theme }) {
     const handleFriendAction = async (action, senderId, notifId) => {
         try {
             const token = localStorage.getItem('token');
+            const base = 'http://localhost:5000/api';
             const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-            const url = `http://localhost:5000/api/friends/${action}/${senderId}`;
+            const url = `${base}/friends/${action}/${senderId}`;
             
             const res = await fetch(url, { method: 'POST', headers });
             if (res.ok) {
@@ -101,20 +124,23 @@ function NotificationsDropdown({ theme }) {
 
             {isOpen && (
                 <div 
-                    className={`dropdown-menu ${theme}`}
+                    className={`notifications-dropdown ${theme || 'dark'}`}
                     style={{
                         position: 'absolute',
-                        top: '40px',
-                        right: '-20px',
-                        width: '350px',
-                        backgroundColor: 'var(--card-bg)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '12px',
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.2)',
-                        padding: '15px',
-                        maxHeight: '400px',
+                        top: '50px',
+                        right: '-10px',
+                        width: '380px',
+                        backgroundColor: '#1a1a1a',
+                        border: '1px solid rgba(245, 197, 24, 0.3)',
+                        borderRadius: '16px',
+                        boxShadow: '0 15px 40px rgba(0,0,0,0.6)',
+                        padding: '20px',
+                        maxHeight: '500px',
                         overflowY: 'auto',
-                        zIndex: 1000
+                        zIndex: 2000,
+                        display: 'block',
+                        opacity: 1,
+                        visibility: 'visible'
                     }}
                 >
                     <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>Notifications</h3>
@@ -131,11 +157,29 @@ function NotificationsDropdown({ theme }) {
                                     display: 'flex',
                                     gap: '10px'
                                 }}>
-                                    <img 
-                                        src={n.sender_picture || 'https://via.placeholder.com/40'} 
-                                        alt="Avatar" 
-                                        style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
-                                    />
+                                    {n.sender_picture ? (
+                                        <img 
+                                            src={n.sender_picture} 
+                                            alt="Avatar" 
+                                            style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
+                                        />
+                                    ) : (
+                                        <div style={{ 
+                                            width: '40px', 
+                                            height: '40px', 
+                                            borderRadius: '50%', 
+                                            backgroundColor: '#f5c518', 
+                                            color: '#000', 
+                                            display: 'flex', 
+                                            alignItems: 'center', 
+                                            justifyContent: 'center', 
+                                            fontWeight: 'bold',
+                                            fontSize: '18px',
+                                            flexShrink: 0
+                                        }}>
+                                            {(n.sender_username || '?')[0].toUpperCase()}
+                                        </div>
+                                    )}
                                     <div style={{ flex: 1, fontSize: '14px' }}>
                                         <p style={{ margin: '0 0 5px 0' }}>{n.message}</p>
                                         <span style={{ fontSize: '11px', opacity: 0.5 }}>{new Date(n.created_at).toLocaleString()}</span>

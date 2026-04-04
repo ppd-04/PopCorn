@@ -409,6 +409,22 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
         } catch (err) { console.error(err); }
     };
 
+    const handleReport = async (postId = null, commentId = null) => {
+        if (!user) return alert('Log in to report content');
+        const reason = window.prompt("Why are you reporting this content? (Spam, Harassment, Spoilers, etc.)");
+        if (!reason || !reason.trim()) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/social/report`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({ post_id: postId, comment_id: commentId, reason: reason.trim() })
+            });
+            if (res.ok) alert("Thank you. Your report has been submitted to the Administrators.");
+            else alert("Failed to submit report.");
+        } catch (err) { console.error(err); }
+    };
+
     const handleDelete = async () => {
         if (!window.confirm('Delete this post?')) return;
         try {
@@ -417,7 +433,7 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
         } catch (err) { console.error(err); }
     };
 
-    const isOwner = user && user.id === post.user_id;
+    const isOwner = user && (user.id === post.user_id || user.user_id === post.user_id);
 
     return (
         <div className="post-card">
@@ -435,17 +451,16 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
                     </div>
                 </div>
 
-                {isOwner && (
-                    <div className="post-menu-container" ref={menuRef}>
-                        <button className="post-menu-btn" onClick={() => setShowMenu(v => !v)}>···</button>
-                        {showMenu && (
-                            <div className="post-menu-dropdown">
-                                <button className="post-menu-item" onClick={() => { setEditing(true); setShowMenu(false); }}>✏️ Edit</button>
-                                <button className="post-menu-item delete" onClick={handleDelete}>🗑️ Delete</button>
-                            </div>
-                        )}
-                    </div>
-                )}
+                <div className="post-menu-container" ref={menuRef}>
+                    <button className="post-menu-btn" onClick={() => setShowMenu(v => !v)}>···</button>
+                    {showMenu && (
+                        <div className="post-menu-dropdown">
+                            {isOwner && <button className="post-menu-item" onClick={() => { setEditing(true); setShowMenu(false); }}>✏️ Edit</button>}
+                            {isOwner && <button className="post-menu-item delete" onClick={handleDelete}>🗑️ Delete</button>}
+                            {!isOwner && <button className="post-menu-item" onClick={() => { handleReport(post.post_id); setShowMenu(false); }}>🚩 Report</button>}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {editing ? (
@@ -483,11 +498,13 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
                                 <div className="comment-text">{renderWithMentions(c.content, navigate)}</div>
                                 <div className="comment-meta">
                                     <span className="comment-time">{timeAgo(c.created_at)}</span>
-                                    {user && user.id === c.user_id && (
+                                    {user && (user.id === c.user_id || user.user_id === c.user_id) ? (
                                         <button className="comment-delete-btn" onClick={async () => {
                                             await fetch(`${API_BASE}/comments/${c.comment_id}`, { method: 'DELETE', headers: authHeaders() });
                                             setComments(comments.filter(x => x.comment_id !== c.comment_id));
                                         }}>Delete</button>
+                                    ) : (
+                                        <button className="comment-report-btn" onClick={() => handleReport(null, c.comment_id)}>Report</button>
                                     )}
                                 </div>
                             </div>

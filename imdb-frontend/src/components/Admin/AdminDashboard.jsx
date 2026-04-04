@@ -11,8 +11,18 @@ function AdminDashboard({ theme }) {
   // Data States
   const [users, setUsers] = useState([]);
   const [logs, setLogs] = useState([]);
+  const [reports, setReports] = useState([]);
   const [contentResults, setContentResults] = useState([]);
   const [contentSearch, setContentSearch] = useState('');
+  
+  // Current admin status from localStorage (Initial fast check)
+  const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+  const initialIsSuperAdmin = currentUser.is_super_admin || false;
+  const currentUserId = currentUser.id || currentUser.user_id;
+
+  // Live admin status synced from database fetch
+  const [isSuperAdminLive, setIsSuperAdminLive] = useState(initialIsSuperAdmin);
+  const isSuperAdmin = initialIsSuperAdmin || isSuperAdminLive;
   
   // Form States
   const [movieForm, setMovieForm] = useState({ tmdb_id: '', title: '', original_title: '', overview: '', release_date: '', poster_path: '', backdrop_path: '', popularity: 0, vote_average: 0, vote_count: 0, original_language: 'en' });
@@ -27,31 +37,49 @@ function AdminDashboard({ theme }) {
     setMessage(msg);
     setTimeout(() => setMessage(''), 4000);
   };
-
-  const getAuthHeaders = () => ({
-    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-    'Content-Type': 'application/json'
-  });
+  
+  const getAuthHeaders = React.useMemo(() => {
+    return () => ({
+      'Authorization': `Bearer ${localStorage.getItem('token')}`,
+      'Content-Type': 'application/json'
+    });
+  }, []);
 
   // --- FETCH DATA ---
-  const fetchUsers = async () => {
+  const fetchUsers = React.useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/users`, { headers: getAuthHeaders() });
-      if (res.ok) setUsers(await res.json());
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+        // Sync live superadmin status if found in the list
+        const liveUser = data.find(u => u.user_id === currentUserId);
+        if (liveUser) setIsSuperAdminLive(liveUser.is_super_admin);
+      }
     } catch (e) { console.error(e); }
-  };
-
-  const fetchLogs = async () => {
+  }, [getAuthHeaders, currentUserId]);
+  
+  const fetchLogs = React.useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/logs`, { headers: getAuthHeaders() });
       if (res.ok) setLogs(await res.json());
     } catch (e) { console.error(e); }
-  };
+  }, [getAuthHeaders]);
+  
+  const fetchReports = React.useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/reports`, { headers: getAuthHeaders() });
+      if (res.ok) setReports(await res.json());
+    } catch (e) { console.error(e); }
+  }, [getAuthHeaders]);
 
   useEffect(() => {
     if (activeTab === 'users') fetchUsers();
     else if (activeTab === 'logs') fetchLogs();
-  }, [activeTab]);
+    else if (activeTab === 'content') {
+      fetchReports();
+    }
+  }, [activeTab, fetchUsers, fetchLogs, fetchReports]);
 
   // --- USER MODERATION ---
   const handleRoleToggle = async (id) => {
@@ -64,28 +92,34 @@ function AdminDashboard({ theme }) {
     } catch (e) { console.error(e); }
   };
 
-  const handleBan = async (id, ms) => {
+  const handleBanToggle = async (user) => {
+    const currentlyBanned = user.banned_until && new Date(user.banned_until) > new Date();
+    
+    // If not banned, ask for duration/reason
+    let ms = null;
+    let reason = "";
+
+    if (!currentlyBanned) {
+      const choice = window.prompt("Enter ban duration in hours (leave empty for PERMANENT):", "24");
+      if (choice === null) return; // User cancelled
+      if (choice !== "") ms = parseInt(choice) * 3600000;
+      
+      reason = window.prompt("Enter reason for ban:", "Violation of community standards");
+      if (reason === null) return;
+    } else {
+      if (!window.confirm(`Unban ${user.username}?`)) return;
+    }
+
     try {
-      const payload = ms ? { durationMs: ms } : {};
-      const res = await fetch(`${API_BASE}/users/${id}/ban`, { 
+      const res = await fetch(`${API_BASE}/users/${user.user_id}/ban`, { 
         method: 'PUT', 
         headers: getAuthHeaders(),
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ durationMs: ms, reason })
       });
       const data = await res.json();
       if (!res.ok) return showMsg(`Error: ${data.error}`);
-      showMsg('User banned successfully.');
+      showMsg(currentlyBanned ? 'User unbanned.' : 'User banned successfully.');
       fetchUsers();
-    } catch (e) { console.error(e); }
-  };
-
-  const handleUnban = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/users/${id}/unban`, { method: 'PUT', headers: getAuthHeaders() });
-      if (res.ok) {
-        showMsg('User unbanned.');
-        fetchUsers();
-      }
     } catch (e) { console.error(e); }
   };
 
@@ -191,27 +225,49 @@ function AdminDashboard({ theme }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {users.map(u => (
-                    <tr key={u.user_id}>
-                      <td>{u.user_id}</td>
-                      <td>{u.username}</td>
-                      <td>{u.email}</td>
-                      <td>
-                        {u.is_super_admin ? <span className="badge super">Super Admin</span> : 
-                         u.is_admin ? <span className="badge admin">Admin</span> : 'User'}
-                      </td>
-                      <td>
-                        {u.banned_until && new Date(u.banned_until) > new Date() ? 
-                          <span className="badge banned">Banned</span> : <span className="badge active">Active</span>}
-                      </td>
-                      <td className="actions-cell">
-                        <button className="btn-action admin-toggle" onClick={() => handleRoleToggle(u.user_id)}>Toggle Role</button>
-                        <button className="btn-action timeout" onClick={() => handleBan(u.user_id, 86400000)}>Timeout 24h</button>
-                        <button className="btn-action ban" onClick={() => handleBan(u.user_id, null)}>PermaBan</button>
-                        <button className="btn-action unban" onClick={() => handleUnban(u.user_id)}>Unban</button>
-                      </td>
-                    </tr>
-                  ))}
+                   {users.map(u => {
+                    const isSelf = u.user_id === currentUserId;
+                    const isTargetAdmin = u.is_admin || u.is_super_admin;
+                    const canModerate = isSuperAdmin ? !isSelf : (!isTargetAdmin && !isSelf);
+                    const canToggleRole = isSuperAdmin ? !isSelf : (!isTargetAdmin && !isSelf);
+                    // Special case: Normal admins can promote, but not demote.
+                    // The backend handles the demotion block, but we hide/disable UI here.
+                    const isBanned = u.banned_until && new Date(u.banned_until) > new Date();
+
+                    return (
+                      <tr key={u.user_id} className={isSelf ? 'current-user-row' : ''}>
+                        <td>{u.user_id}</td>
+                        <td>{u.username} {isSelf && <small>(You)</small>}</td>
+                        <td>{u.email}</td>
+                        <td>
+                          {u.is_super_admin ? <span className="badge super">Super Admin</span> : 
+                           u.is_admin ? <span className="badge admin">Admin</span> : 'User'}
+                        </td>
+                        <td>
+                          {isBanned ? <span className="badge banned">Banned</span> : <span className="badge active">Active</span>}
+                        </td>
+                        <td className="actions-cell">
+                          {canToggleRole && (
+                            <button 
+                              className={`btn-action admin-toggle ${u.is_admin ? 'demote' : 'promote'}`} 
+                              onClick={() => handleRoleToggle(u.user_id)}
+                              disabled={u.is_admin && !isSuperAdmin}
+                            >
+                              {u.is_admin ? 'Demote Admin' : 'Promote to Admin'}
+                            </button>
+                          )}
+                          {canModerate && (
+                            <button 
+                              className={`btn-action ${isBanned ? 'unban' : 'ban'}`} 
+                              onClick={() => handleBanToggle(u)}
+                            >
+                              {isBanned ? 'Unban' : 'Ban User'}
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -325,7 +381,31 @@ function AdminDashboard({ theme }) {
         {/* ================= CONTENT MODERATION ================= */}
         {activeTab === 'content' && (
           <div className="admin-panel">
-            <h2>Global Content Moderation</h2>
+            <h2>Reported Content</h2>
+            <div className="reports-grid">
+              {reports.length === 0 ? <p className="no-data">No pending reports.</p> : reports.map(r => (
+                <div key={r.id} className="report-card glass-panel">
+                  <div className="report-header">
+                    <span className="badge urgency-high">REPORT #{r.id}</span>
+                    <span className="reporter">By: @{r.reporter_username}</span>
+                  </div>
+                  <div className="report-body">
+                    <p><strong>Reason:</strong> {r.reason}</p>
+                    <div className="flagged-content">
+                      <p className="author">Author: @{r.post_author || r.comment_author}</p>
+                      <p className="text">"{r.post_content || r.comment_content}"</p>
+                    </div>
+                  </div>
+                  <div className="report-footer">
+                    <button className="btn-ban" onClick={() => deleteContent(r.post_id || r.comment_id, r.post_id ? 'post' : 'comment')}>🗑️ Strip Content</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <hr style={{margin: '40px 0', opacity: 0.1}} />
+
+            <h2>Global Content Search</h2>
             <div className="tmdb-search-box">
               <input type="text" placeholder="Search posts and comments..." value={contentSearch} onChange={e => setContentSearch(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchContent()} />
               <button onClick={searchContent}>Search Network</button>
