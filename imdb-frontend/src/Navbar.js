@@ -10,7 +10,9 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMessengerOpen, setIsMessengerOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const socketRef = useRef(null);
 
   // Search suggestions state
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,6 +80,49 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showSuggestions]);
+
+  // UNREAD MESSAGES LOGIC
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/chat/unread-total`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCount(data.total);
+        }
+      } catch (err) { console.error(err); }
+    };
+
+    fetchUnread();
+
+    // Socket for real-time updates
+    const io = require('socket.io-client');
+    const socket = io('http://localhost:5000');
+    socketRef.current = socket;
+    socket.emit('join_user', user.userId || user.id);
+
+    socket.on('unread_update', (data) => {
+      setUnreadCount(data.unreadCount);
+    });
+
+    return () => socket.disconnect();
+  }, [user]);
+
+  const onMessengerClose = () => {
+    setIsMessengerOpen(false);
+    // Re-fetch unread count when closing messenger (in case they read messages)
+    if (user) {
+      const token = localStorage.getItem('token');
+      fetch(`${API_BASE}/chat/unread-total`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).then(r => r.json()).then(d => setUnreadCount(d.total)).catch(e => {});
+    }
+  };
 
   const gotoMovie = (id, type) => {
     setShowSuggestions(false);
@@ -257,7 +302,10 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
         
         {user ? (
           <>
-            <span className="nav-link" onClick={() => setIsMessengerOpen(true)} style={{ cursor: 'pointer' }}>💬</span>
+            <span className="nav-link messenger-link-container" onClick={() => setIsMessengerOpen(true)} style={{ cursor: 'pointer' }}>
+                💬
+                {unreadCount > 0 && <span className="unread-badge">{unreadCount}</span>}
+            </span>
             <NotificationsDropdown />
             <div className="profile-menu-container">
               <div className="profile-avatar">
@@ -318,7 +366,7 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
       <div className="sidebar-overlay" onClick={() => setIsMenuOpen(false)}></div>
     )}
     
-    <MessengerPanel user={user} isOpen={isMessengerOpen} onClose={() => setIsMessengerOpen(false)} />
+    <MessengerPanel user={user} isOpen={isMessengerOpen} onClose={onMessengerClose} />
     </>
   );
 }

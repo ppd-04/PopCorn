@@ -2279,6 +2279,82 @@ app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
     }
 });
 
+// NEW: Get aggregated conversations for the "All" tab
+app.get('/api/chat/conversations', authenticateToken, async (req, res) => {
+    const userId = req.user.userId;
+    try {
+        const result = await pool.query(`
+            WITH last_messages AS (
+                SELECT DISTINCT ON (partner_id)
+                    CASE WHEN sender_id = $1 THEN receiver_id ELSE sender_id END AS partner_id,
+                    message,
+                    created_at,
+                    sender_id
+                FROM direct_messages
+                WHERE sender_id = $1 OR receiver_id = $1
+                ORDER BY partner_id, created_at DESC
+            ),
+            unread_counts AS (
+                SELECT sender_id AS partner_id, COUNT(*)::int AS unread_count
+                FROM direct_messages
+                WHERE receiver_id = $1 AND read_at IS NULL
+                GROUP BY sender_id
+            )
+            SELECT lm.*, u.username, u.full_name, u.profile_picture, COALESCE(uc.unread_count, 0) AS unread_count
+            FROM last_messages lm
+            JOIN users u ON lm.partner_id = u.user_id
+            LEFT JOIN unread_counts uc ON lm.partner_id = uc.partner_id
+            ORDER BY lm.created_at DESC
+        `, [userId]);
+        res.json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to fetch conversations' });
+    }
+});
+
+// NEW: Global unread total
+app.get('/api/chat/unread-total', authenticateToken, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT COUNT(*)::int AS total FROM direct_messages WHERE receiver_id = $1 AND read_at IS NULL',
+            [req.user.userId]
+        );
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch unread total' });
+    }
+});
+
+// NEW: Search users for Chat
+app.get('/api/chat/search', authenticateToken, async (req, res) => {
+    const { q } = req.query;
+    if (!q) return res.json([]);
+    try {
+        const result = await pool.query(`
+            SELECT user_id, username, full_name, profile_picture FROM users 
+            WHERE (username ILIKE $1 OR full_name ILIKE $1) AND user_id != $2
+            LIMIT 10
+        `, [`%${q}%`, req.user.userId]);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: 'Search failed' });
+    }
+});
+
+// NEW: Mark messages from partner as read
+app.post('/api/chat/read/:partnerId', authenticateToken, async (req, res) => {
+    try {
+        await pool.query(
+            'UPDATE direct_messages SET read_at = NOW() WHERE receiver_id = $1 AND sender_id = $2 AND read_at IS NULL',
+            [req.user.userId, req.params.partnerId]
+        );
+        res.json({ success: true });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to mark read' });
+    }
+});
+
 // Discussions feed
 app.get('/api/discussions/feed', authenticateToken, async (req, res) => {
     try {
@@ -2820,6 +2896,13 @@ io.on('connection', (socket) => {
             // Broadcast to the receiver and sender so both UI updates instantly
             io.to(`user_${data.receiver_id}`).emit('receive_dm', msg);
             io.to(`user_${data.sender_id}`).emit('receive_dm', msg);
+
+            // Notify receiver of new message count
+            const unreadRes = await pool.query(
+                'SELECT COUNT(*)::int AS total FROM direct_messages WHERE receiver_id = $1 AND read_at IS NULL',
+                [data.receiver_id]
+            );
+            io.to(`user_${data.receiver_id}`).emit('unread_update', { unreadCount: unreadRes.rows[0].total });
         } catch (err) {
             console.error('DM Error:', err);
         }
