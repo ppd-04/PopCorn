@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS favourite_people (
     person_id INTEGER NOT NULL,
     person_name VARCHAR(255) NOT NULL,
     person_role VARCHAR(100), -- 'Actor', 'Director', etc.
-    profile_path TEXT, -- TMDB profile image path
+    profile_path TEXT,
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE(user_id, person_id)
 );

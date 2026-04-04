@@ -80,6 +80,32 @@
   transform: translateY(-1px);
 }
 
+.nav-browse-link span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700 !important;
+  color: #f5c518 !important;
+}
+
+.nav-badge {
+  background: #ff3b30;
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 10px rgba(255, 59, 48, 0.4);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 /* =========================================
    SIDEBAR & HAMBURGER STYLES
    ========================================= */
@@ -278,3 +304,179 @@
 }
 
 
+
+/* Search suggestions dropdown */
+.search-suggestions {
+  position: absolute;
+  margin-top: 8px;
+  width: 100%;
+  list-style: none;
+  padding: 6px 0;
+  border-radius: 12px;
+  border: 1px solid rgba(245, 197, 24, 0.25);
+  max-height: 300px;
+  overflow-y: auto;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.35);
+  z-index: 1002;
+}
+.search-suggestions.dark { background: #121212; color: #eee; }
+.search-suggestions.light { background: #ffffff; color: #111; border-color: rgba(0,0,0,0.12); }
+.search-suggestions li {
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.search-suggestions li:hover,
+.search-suggestions li.highlighted {
+  background: rgba(245, 197, 24, 0.15);
+}
+.search-suggestions.light li:hover,
+.search-suggestions.light li.highlighted {
+  background: rgba(0,0,0,0.06);
+}
+
+/* Ensure the dropdown positions relative to the search container */
+.navbar__search { position: relative; }
+
+
+/* Suggestion items with thumbnail and subtitle */
+.suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+.suggestion-thumb {
+  width: 32px;
+  height: 48px;
+  flex: 0 0 32px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(245, 197, 24, 0.15);
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+}
+.search-suggestions.light .suggestion-thumb {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.12);
+}
+.suggestion-thumb.placeholder {
+  color: #f5c518;
+}
+.suggestion-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.suggestion-title {
+  font-weight: 600;
+  color: inherit;
+}
+.suggestion-sub {
+  font-size: 12px;
+  opacity: 0.75;
+  color: rgba(255,255,255,0.7);
+}
+.search-suggestions.light .suggestion-sub {
+  color: rgba(0,0,0,0.6);
+}
+
+/* Tooltip for suggestion hover */
+.suggestion-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 0;
+  width: 320px;
+  max-width: 60vw;
+  background: #101010;
+  color: #eee;
+  border: 1px solid rgba(245, 197, 24, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.45);
+  padding: 10px;
+  z-index: 1003;
+  opacity: 0;
+  transform: translateY(4px) scale(0.98);
+  pointer-events: none; /* Avoid blocking clicks */
+  transition: opacity .15s ease, transform .15s ease;
+}
+.search-suggestions.light .suggestion-tooltip {
+  background: #fff;
+  color: #111;
+  border-color: rgba(0,0,0,0.12);
+  box-shadow: 0 12px 28px rgba(0,0,0,0.18);
+}
+.suggestion-tooltip.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.suggestion-tooltip .tooltip-row {
+  display: flex;
+  gap: 10px;
+}
+.suggestion-tooltip .tooltip-poster {
+  width: 56px;
+  height: 84px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(245, 197, 24, 0.15);
+}
+.search-suggestions.light .suggestion-tooltip .tooltip-poster {
+  background: rgba(0,0,0,0.06);
+  border-color: rgba(0,0,0,0.12);
+}
+.suggestion-tooltip .tooltip-content {
+  flex: 1;
+  min-width: 0;
+}
+.suggestion-tooltip .tooltip-title {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 4px;
+}
+.suggestion-tooltip .tooltip-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  color: rgba(255,255,255,0.75);
+}
+.search-suggestions.light .suggestion-tooltip .tooltip-meta {
+  color: rgba(0,0,0,0.65);
+}
+.suggestion-tooltip .meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: rgba(245, 197, 24, 0.18);
+  color: #ffd85a;
+  border: 1px solid rgba(245, 197, 24, 0.25);
+}
+.search-suggestions.light .suggestion-tooltip .meta-pill {
+  background: rgba(0,0,0,0.06);
+  color: #333;
+  border-color: rgba(0,0,0,0.12);
+}
+.suggestion-tooltip .tooltip-overview {
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.9;
+}
+
+/* CSS hover fallback for suggestion tooltip and overflow fix */
+.search-suggestions { overflow-x: visible; }
+
+/* Show tooltip on pure CSS hover with a slight delay; JS timers remain for keyboard focus */
+.search-suggestions li .suggestion-tooltip { transition-delay: 0s; }
+.search-suggestions li:hover .suggestion-tooltip { transition-delay: 450ms; opacity: 1; transform: translateY(0) scale(1); }
+
+
+/* --- Tooltip robustness additions --- */
+.navbar__search { overflow: visible; }
+.search-suggestions li { position: relative; }
+.suggestion-tooltip { z-index: 5000; }

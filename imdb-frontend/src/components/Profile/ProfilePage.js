@@ -645,7 +645,6 @@ const ProfilePage = ({ user, setUser }) => {
 
         {/* Charts */}
         <div className="charts-grid">
-          {/* Genre Distribution Pie Chart */}
           {stats.genre_distribution && stats.genre_distribution.length > 0 && (
             <div className="chart-card">
               <h3>🍩 Genre Distribution</h3>
@@ -670,7 +669,6 @@ const ProfilePage = ({ user, setUser }) => {
             </div>
           )}
 
-          {/* Rating Distribution Bar Chart */}
           {stats.rating_distribution && stats.rating_distribution.length > 0 && (
             <div className="chart-card">
               <h3>📊 Your Rating Distribution</h3>
@@ -689,7 +687,6 @@ const ProfilePage = ({ user, setUser }) => {
             </div>
           )}
 
-          {/* Monthly Activity Line Chart */}
           {stats.monthly_activity && stats.monthly_activity.length > 0 && (
             <div className="chart-card">
               <h3>📈 Monthly Activity</h3>
@@ -709,7 +706,6 @@ const ProfilePage = ({ user, setUser }) => {
           )}
         </div>
 
-        {/* Recent Activity Feed */}
         {stats.recent_activity && stats.recent_activity.length > 0 && (
           <>
             <h2 className="tab-section-title" style={{ marginTop: '10px' }}>🕐 Activity Feed</h2>
@@ -731,7 +727,6 @@ const ProfilePage = ({ user, setUser }) => {
           </>
         )}
 
-        {/* Empty charts state */}
         {(!stats.genre_distribution || stats.genre_distribution.length === 0) &&
          (!stats.rating_distribution || stats.rating_distribution.length === 0) &&
          (!stats.monthly_activity || stats.monthly_activity.length === 0) && (
@@ -777,7 +772,6 @@ const ProfilePage = ({ user, setUser }) => {
             </div>
           </div>
 
-          {/* Profile Info */}
           <div className="settings-section">
             <h3>👤 Profile Information</h3>
             <form onSubmit={handleUpdateProfile}>
@@ -834,7 +828,6 @@ const ProfilePage = ({ user, setUser }) => {
             </form>
           </div>
 
-          {/* Change Password */}
           <div className="settings-section">
             <h3>🔒 Change Password</h3>
             <form onSubmit={handleChangePassword}>
@@ -889,9 +882,6 @@ const ProfilePage = ({ user, setUser }) => {
     );
   };
 
-  // ====================================
-  // MAIN RENDER
-  // ====================================
 
   if (loading) {
     return (
@@ -909,25 +899,18 @@ const ProfilePage = ({ user, setUser }) => {
   return (
     <div className="profile-page">
       <div className="profile-container">
-        {/* Profile Header */}
-        {/* changing this for jhamela */}
-
-        {/* Profile Header */}
         <div className="profile-header">
           <div className="profile-avatar-large">
-            {/* CHANGE: Added user fallback for picture */}
             {(profile?.profile_picture || user?.profile_picture) ? (
               <img 
                 src={profile?.profile_picture || user?.profile_picture} 
                 alt={profile?.full_name || profile?.username || user?.username} 
               />
             ) : (
-              /* CHANGE: Added user fallback for initial letter */
               (profile?.username || user?.username || '?').charAt(0).toUpperCase()
             )}
           </div>
           <div className="profile-header-info">
-            {/* CHANGE: Added user fallback for Name and Username */}
             <h1>{profile?.full_name || profile?.username || user?.username || 'PopCorn User'}</h1>
             <div className="profile-email">
               @{profile?.username || user?.username} • {profile?.email || user?.email}

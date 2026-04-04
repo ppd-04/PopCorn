@@ -219,8 +219,26 @@ const MovieDetails = ({ user }) => {
     );
   }
 
+  const bgImageUrl = movie.backdrop_path
+    ? `https://image.tmdb.org/t/p/original${movie.backdrop_path}`
+    : movie.poster_path
+      ? `https://image.tmdb.org/t/p/original${movie.poster_path}`
+      : '';
+
+  const backgroundStyle = {
+
+    backgroundImage: bgImageUrl
+      ? `linear-gradient(to bottom, rgba(15, 15, 20, 0.6), rgba(15, 15, 20, 0.95)), url(${bgImageUrl})`
+      : 'none',
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundAttachment: 'fixed',
+    backgroundRepeat: 'no-repeat',
+    minHeight: '100vh',
+  };
+
   return (
-    <div className="md-page">
+    <div className="md-page" style={backgroundStyle}>
       <div className="md-container">
 
         {/* Back Button */}

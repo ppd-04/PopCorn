@@ -1,17 +1,35 @@
-# Frontend
-imdb-frontend/node_modules/
-imdb-frontend/build/
-
-# Backend (future)
-imdb-backend/node_modules/
-imdb-backend/dist/
-
+# Dependencies
 node_modules/
+**/node_modules/
+package-lock.json
 
-# Env files
-.env
-**/.env
+# Frontend
+imdb-frontend/build/
+imdb-frontend/.vscode/
+
+# Backend
+popcorn-backend/.env
+popcorn-backend/dist/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
 
 # OS files
 .DS_Store
 Thumbs.db
+
+# Logs and temp files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.zip
+*.tar.gz
+*.rar
+
+# Env files
+.env
+**/.env

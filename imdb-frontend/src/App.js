@@ -8,7 +8,14 @@ import { Routes, Route } from 'react-router-dom';
 import MovieDetails from './components/MovieDetails';
 import SocialFeed from './components/Social/SocialFeed';
 import ProfilePage from './components/Profile/ProfilePage';
-
+import ChatPanel from './components/Chat/ChatPanel';
+import AdminDashboard from './components/Admin/AdminDashboard';
+import BrowsePage from './components/Browse/BrowsePage';
+import SeriesPage from './components/Series/SeriesPage';
+import Celebrities from './components/celebrities/celebrities';
+import PublicProfile from './components/User/PublicProfile';
+import PeopleSearch from './components/Social/PeopleSearch';
+import DiscussionRoom from './components/Social/DiscussionRoom';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 function App() {
@@ -117,6 +124,8 @@ function App() {
     document.body.className = newTheme;
   };
 
+  const [chatOpen, setChatOpen] = useState(false);
+
   return (
     <div className={`App ${theme}`}>
       <Navbar
@@ -190,16 +199,32 @@ function App() {
             {/* THIS IS THE NEW MOVIES PAGE ROUTE */}
             <Route path="/movies" element={<MovieFeed searchTerm={searchTerm} />} />
 
+            {/* BROWSE PAGE ROUTE */}
+            <Route path="/browse" element={<BrowsePage user={user} />} />
+
             {/* THIS IS THE NEW MOVIE DETAILS ROUTE */}
             <Route path="/movie/:id" element={<MovieDetails user={user} />} />
 
             {/* THIS IS THE NEW SOCIAL FEED ROUTE */}
             <Route path="/social" element={<SocialFeed user={user} />} />
 
+            <Route path="/series" element={<SeriesPage />} />
+            <Route path="/celebrities" element={<Celebrities />} />
+            
+            <Route path="/user/:id" element={<PublicProfile currentUser={user} />} />
+            <Route path="/people" element={<PeopleSearch />} />
+
             {/* PROFILE PAGE ROUTE */}
             <Route path="/profile" element={
               <ProtectedRoute>
                 <ProfilePage user={user} setUser={setUser} />
+              </ProtectedRoute>
+            } />
+
+            {/* ADMIN DASHBOARD ROUTE */}
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                {user && user.is_admin ? <AdminDashboard theme={theme} /> : <div style={{padding:'100px', textAlign:'center', color:'red', fontWeight:'bold'}}>Access denied. Admins only.</div>}
               </ProtectedRoute>
             } />
 
@@ -214,6 +239,9 @@ function App() {
                 </div>
               </ProtectedRoute>
             } />
+
+            <Route path="/series" element={<SeriesPage/>}/>
+            <Route path="/social/discussion/:id" element={<DiscussionRoom user={user} />} />
           </Routes>
 
           <footer className="footer">
@@ -260,6 +288,12 @@ function App() {
           </footer>
         </>
       )}
+
+      {/* Floating Chat button */}
+      {!chatOpen && (
+        <button className="chat-fab" onClick={() => setChatOpen(true)} title="Chat with PopCorn AI">💬</button>
+      )}
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} theme={theme} />
     </div>
   );
 }

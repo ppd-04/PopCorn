@@ -1,0 +1,130 @@
+SQL query breakdown for IMDB/PopCorn project
+Generated: 2026-04-02 21:44 local time
+
+Summary
+- Total SQL query calls: 70
+- Files containing SQL: 1
+  - E:\imdb\IMDB\popcorn-backend\server.js (all 70)
+
+Breakdown by feature/route (server.js)
+
+0) Startup/Infrastructure
+- [Line 38] SELECT NOW() — DB connectivity check during server startup (1)
+
+1) Authentication and User Account
+- [Line 210] SELECT * FROM users WHERE email = $1 — Login/email lookup (1)
+- [Line 821] SELECT password FROM users WHERE user_id = $1 — Verify current password (1)
+- [Line 833] UPDATE users SET password = $1 WHERE user_id = $2 — Change password (1)
+- [Line 846] UPDATE users SET ... WHERE user_id = $1 — Update profile fields (1)
+Subtotal: 4
+
+2) Social: Posts, Likes, Comments
+Posts
+- [Line 315] (query variable) SELECT ... FROM social_posts ... — Feed/list posts (1)
+- [Line 338] INSERT INTO social_posts (...) VALUES (...) — Create post (1)
+- [Line 341] SELECT sp.*, u.username, ... FROM social_posts sp JOIN users u ... WHERE post_id = $1 — Return full created post (1)
+- [Line 364] SELECT user_id FROM social_posts WHERE post_id = $1 — Owner check before update (1)
+- [Line 382] UPDATE social_posts SET ... WHERE post_id = $1 — Update post (1)
+- [Line 396] SELECT user_id FROM social_posts WHERE post_id = $1 — Owner check before delete (1)
+- [Line 404] DELETE FROM social_posts WHERE post_id = $1 — Delete post (1)
+
+Likes
+- [Line 419] SELECT 1 FROM post_likes WHERE post_id = $1 AND user_id = $2 — Existing like? (1)
+- [Line 426] DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2 — Unlike (1)
+- [Line 427] SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1 — Recount after delete (1)
+- [Line 431] INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2) — Like (1)
+- [Line 432] SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1 — Recount after insert (1)
+
+Single post/details
+- [Line 453] (query variable) SELECT ... FROM social_posts ... WHERE post_id = $1 — Get one post with aggregates (1)
+
+Post comments
+- [Line 477] INSERT INTO post_comments (...) VALUES (...) — Create comment (1)
+- [Line 480] SELECT pc.*, u.username, ... FROM post_comments pc JOIN users u ... WHERE comment_id = $1 — Return full new comment (1)
+- [Line 500] SELECT user_id FROM post_comments WHERE comment_id = $1 — Owner check before delete (1)
+- [Line 508] DELETE FROM post_comments WHERE comment_id = $1 — Delete comment (1)
+Subtotal in Social: 18
+
+3) Movies: Ratings, Details, Comments
+Ratings
+- [Line 534] (query variable) INSERT INTO movie_ratings ... ON CONFLICT (...) DO UPDATE — Upsert rating (1)
+- [Line 537] SELECT AVG(rating), COUNT(*) ... FROM movie_ratings WHERE movie_id = $1 — Rating stats (1)
+- [Line 567] SELECT rating FROM movie_ratings WHERE user_id = $1 AND movie_id = $2 — User’s rating for movie (1)
+- [Line 577] SELECT AVG(...), COUNT(...) ... (additional stats for details card) (1)
+
+Movie details
+- [Line 605] (query variable) SELECT m.*, ... FROM movies m LEFT JOIN ... WHERE m.id = $1 — Movie details (1)
+
+Movie comments
+- [Line 624] INSERT INTO movie_comments (...) VALUES (...) — Create movie comment (1)
+- [Line 629] SELECT mc.*, u.username, ... FROM movie_comments mc JOIN users u ... WHERE mc.comment_id = $1 — Full new movie comment (1)
+- [Line 649] SELECT user_id FROM movie_comments WHERE comment_id = $1 — Owner check (1)
+- [Line 653] DELETE FROM movie_comments WHERE comment_id = $1 — Delete movie comment (1)
+- [Line 754] (query variable) SELECT ... FROM movie_comments WHERE movie_id = $1 ORDER BY ... — List comments for movie (1)
+Subtotal in Movies (ratings/details/comments): 10
+
+4) Collections and Toggles (Watchlist, Favourites, Watched, Wishlist)
+Watchlist (movies)
+- [Line 666] SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2 — Exists? (1)
+- [Line 668] DELETE FROM watchlist WHERE user_id = $1 AND movie_id = $2 — Remove (1)
+- [Line 671] INSERT INTO watchlist (user_id, movie_id) VALUES ($1, $2) — Add (1)
+- [Line 766] (query variable) SELECT ... FROM watchlist WHERE user_id = $1 — List user’s watchlist (1)
+
+Favourites (movies)
+- [Line 685] SELECT * FROM user_favourites WHERE user_id = $1 AND movie_id = $2 — Exists? (1)
+- [Line 687] DELETE FROM user_favourites WHERE user_id = $1 AND movie_id = $2 — Remove (1)
+- [Line 690] INSERT INTO user_favourites (user_id, movie_id) VALUES ($1, $2) — Add (1)
+- [Line 788] (query variable) SELECT ... FROM user_favourites WHERE user_id = $1 — List favourites (1)
+
+Watched (movies)
+- [Line 704] SELECT * FROM user_watched WHERE user_id = $1 AND movie_id = $2 — Exists? (1)
+- [Line 706] DELETE FROM user_watched WHERE user_id = $1 AND movie_id = $2 — Remove (1)
+- [Line 709] INSERT INTO user_watched (user_id, movie_id) VALUES ($1, $2) — Add (1)
+
+Status (triplet status for a movie)
+- [Lines 724, 725, 726] SELECT 1 FROM watchlist/user_favourites/user_watched WHERE ... — Status flags via Promise.all (3)
+
+Wishlist (separate from watchlist)
+- [Line 867] SELECT * FROM wishlist WHERE user_id = $1 AND movie_id = $2 — Exists? (1)
+- [Line 869] DELETE FROM wishlist WHERE user_id = $1 AND movie_id = $2 — Remove (1)
+- [Line 872] INSERT INTO wishlist (user_id, movie_id) VALUES ($1, $2) — Add (1)
+- [Line 885] (query variable) SELECT ... FROM wishlist WHERE user_id = $1 — List wishlist (1)
+- [Lines 1127–1131] SELECT 1 FROM wishlist WHERE user_id = $1 AND movie_id = $2 — Wishlist status (1)
+
+Favourite People
+- [Line 949] SELECT * FROM favourite_people WHERE user_id = $1 AND person_id = $2 — Exists? (1)
+- [Line 954] DELETE FROM favourite_people WHERE user_id = $1 AND person_id = $2 — Remove (1)
+- [Line 957] INSERT INTO favourite_people (user_id, person_id) VALUES ($1, $2) — Add (1)
+- [Line 973] (query variable) SELECT ... FROM favourite_people WHERE user_id = $1 — List favourite people (1)
+Subtotal in Collections/Toggles: 19
+
+5) Profile pages and lists (non-stats)
+- [Line 906] (query variable) SELECT ... FROM movie_ratings WHERE user_id = $1 — Ratings given by user (1)
+- [Line 926] (query variable) SELECT ... FROM favourite_people WHERE user_id = $1 — People favourited by user (1)
+- [Line 1003] (query variable) SELECT ... (profile overview/supporting data) (1)
+Subtotal: 3
+
+6) Profile: Stats block
+- [Line 1025] SELECT COUNT(*)::int AS count FROM user_watched WHERE user_id = $1 — Watched count (1)
+- [Line 1030] SELECT COALESCE(AVG(rating), 0)::numeric(3,1) AS avg FROM movie_ratings WHERE user_id = $1 — Average rating (1)
+- [Line 1035] SELECT COUNT(*)::int AS count FROM movie_ratings WHERE user_id = $1 — Total ratings (1)
+- [Line 1040] SELECT COUNT(*)::int AS count FROM watchlist WHERE user_id = $1 — Watchlist count (1)
+- [Line 1045] SELECT COUNT(*)::int AS count FROM user_favourites WHERE user_id = $1 — Favourites count (1)
+- [Lines 1050–1059] SELECT g.name, COUNT(*) ... JOIN ... GROUP BY g.name ORDER BY count DESC LIMIT 10 — Genre distribution (1)
+- [Lines 1063–1069] SELECT FLOOR(rating)::int AS rating_value, COUNT(*)::int ... GROUP BY FLOOR(rating) — Rating distribution (1)
+- [Lines 1073–1081] SELECT TO_CHAR(created_at, 'YYYY-MM') AS month, COUNT(*) ... WHERE created_at >= NOW() - INTERVAL '6 months' GROUP BY ... — Monthly activity (1)
+- [Lines 1085–1093] SELECT ua.*, m.title, m.poster_path FROM user_activity ua LEFT JOIN movies m ... ORDER BY ua.created_at DESC LIMIT 20 — Recent activity (1)
+- [Lines 1096–1101] SELECT ui.genre_id, g.name FROM user_interests ui LEFT JOIN genres g ... WHERE ui.user_id = $1 — Interests (1)
+Subtotal: 10
+
+7) Genres and Search
+- [Lines 1147–1154] SELECT id, title FROM movies WHERE title ILIKE $1 ORDER BY title ASC LIMIT 5 — Search suggestions (1)
+- [Line 1164] SELECT id, name FROM genres ORDER BY name — List all genres (1)
+Subtotal: 2
+
+Grand total: 70 SQL calls (matches automated search count)
+
+Notes
+- Line numbers refer to the current version of E:\imdb\IMDB\popcorn-backend\server.js (1176 lines total) as provided in this session.
+- Some operations (e.g., like/unlike) include alternative paths (insert vs delete) — both SQL statements are counted because they exist in code, though only one path runs per request.
+- Prefix searches for suggestions use ILIKE with a bound parameter `$1 = q || '%'` and are ordered lexicographically with LIMIT 5.
