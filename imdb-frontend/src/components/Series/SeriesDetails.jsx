@@ -31,6 +31,7 @@ const SeriesDetails = ({ user }) => {
   const navigate = useNavigate();
   const [series, setSeries] = useState(null);
   const [seasons, setSeasons] = useState([]);
+  const [selectedSeason, setSelectedSeason] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // User interaction state
@@ -67,20 +68,20 @@ const SeriesDetails = ({ user }) => {
           console.error('Error fetching series:', error);
         } else {
           setSeries(data);
-
-          // Set initial rating from Supabase data
           if (data.vote_average) setAvgRating(Number(data.vote_average));
           if (data.vote_count) setTotalRatings(data.vote_count);
         }
 
-        // Fetch seasons
+        // Fetch seasons from the 'season' table — series_id corresponds to tmdb_id
         const { data: seasonData, error: seasonError } = await supabase
-          .from('seasons')
+          .from('season')
           .select('*')
-          .eq('series_id', Number(id));
+          .eq('series_id', Number(id))
+          .order('season_number', { ascending: true });
 
-        if (!seasonError && seasonData) {
+        if (!seasonError && seasonData && seasonData.length > 0) {
           setSeasons(seasonData);
+          setSelectedSeason(seasonData[0]);
         }
       } catch (err) {
         console.error('Series fetch error:', err);
@@ -90,7 +91,7 @@ const SeriesDetails = ({ user }) => {
     fetchSeriesData();
   }, [id]);
 
-  // Fetch series rating from backend
+  // Fetch series rating from backend (blended IMDB + user)
   const fetchRating = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/series/${id}/rating`, { headers: authHeaders() });
@@ -98,9 +99,9 @@ const SeriesDetails = ({ user }) => {
         const data = await res.json();
         if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
         if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
-        if (data.my_rating !== undefined) setMyRating(Number(data.my_rating));
+        if (data.my_rating !== undefined && data.my_rating !== null) setMyRating(Number(data.my_rating));
       }
-    } catch (err) { /* API may not exist yet, will use Supabase data */ }
+    } catch (err) { /* fallback to supabase data */ }
   }, [id]);
 
   // Fetch user status from backend
@@ -132,11 +133,11 @@ const SeriesDetails = ({ user }) => {
   const fetchRelated = useCallback(async () => {
     if (!series) return;
     try {
-      // Get series with similar genres
       const genreStr = series.genres;
       if (!genreStr) return;
-
-      const firstGenre = typeof genreStr === 'string' ? genreStr.split(',')[0].trim() : '';
+      const firstGenre = Array.isArray(genreStr)
+        ? genreStr[0]
+        : typeof genreStr === 'string' ? genreStr.split(',')[0].trim() : '';
       if (!firstGenre) return;
 
       const { data, error } = await supabase
@@ -147,9 +148,7 @@ const SeriesDetails = ({ user }) => {
         .order('popularity', { ascending: false })
         .limit(10);
 
-      if (!error && data) {
-        setRelatedSeries(data);
-      }
+      if (!error && data) setRelatedSeries(data);
     } catch (err) { console.error('Related fetch error:', err); }
   }, [id, series]);
 
@@ -162,9 +161,7 @@ const SeriesDetails = ({ user }) => {
   }, [id, fetchRating, fetchStatus, fetchComments]);
 
   useEffect(() => {
-    if (series) {
-      fetchRelated();
-    }
+    if (series) fetchRelated();
   }, [series, fetchRelated]);
 
   // ---- HANDLERS ----
@@ -182,6 +179,9 @@ const SeriesDetails = ({ user }) => {
         setMyRating(data.my_rating || rating);
         if (data.avg_rating !== undefined) setAvgRating(Number(data.avg_rating));
         if (data.total_ratings !== undefined) setTotalRatings(Number(data.total_ratings));
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to rate');
       }
     } catch (err) { console.error('Rate failed:', err); }
   };
@@ -198,6 +198,9 @@ const SeriesDetails = ({ user }) => {
         if (type === 'watchlist') setter(data.in_watchlist);
         if (type === 'favourite') setter(data.is_favourite);
         if (type === 'watched') setter(data.is_watched);
+      } else {
+        const err = await res.json();
+        alert(err.error || `Failed to toggle ${type}`);
       }
     } catch (err) { console.error(`Toggle ${type} failed:`, err); }
   };
@@ -284,6 +287,16 @@ const SeriesDetails = ({ user }) => {
 
   const year = series.first_air_date ? series.first_air_date.split('-')[0] : '';
 
+  const genreList = Array.isArray(series.genres)
+    ? series.genres
+    : typeof series.genres === 'string'
+      ? series.genres.split(',').map(g => g.trim())
+      : [];
+
+  const selectedSeasonPoster = selectedSeason?.poster_path
+    ? `https://image.tmdb.org/t/p/w342${selectedSeason.poster_path}`
+    : null;
+
   return (
     <div className="sd-page" style={backgroundStyle}>
       <div className="sd-container">
@@ -321,6 +334,15 @@ const SeriesDetails = ({ user }) => {
               {series.type && <span className="sd-meta-pill">{series.type}</span>}
             </div>
 
+            {/* Genre Tags */}
+            {genreList.length > 0 && (
+              <div className="sd-genre-tags">
+                {genreList.map((g, i) => (
+                  <span key={i} className="sd-genre-tag">{g}</span>
+                ))}
+              </div>
+            )}
+
             {/* Action Buttons */}
             <div className="sd-actions">
               <button
@@ -331,7 +353,7 @@ const SeriesDetails = ({ user }) => {
                 {inWatchlist ? 'In Watchlist' : 'Watchlist'}
               </button>
               <button
-                className={`sd-action-btn ${isFavourite ? 'active' : ''}`}
+                className={`sd-action-btn ${isFavourite ? 'active fav' : ''}`}
                 onClick={() => handleToggle('favourite', setIsFavourite)}
               >
                 <span className="btn-icon">{isFavourite ? '❤️' : '🤍'}</span>
@@ -354,9 +376,9 @@ const SeriesDetails = ({ user }) => {
                     {Number(avgRating || 0) > 0 ? Number(avgRating).toFixed(1) : '—'}
                   </span>
                   <div className="sd-avg-meta">
-                    <span className="sd-avg-label">Rating</span>
+                    <span className="sd-avg-label">PopCorn Rating</span>
                     <span className="sd-avg-count">
-                      {totalRatings > 0 ? `${totalRatings} vote${totalRatings !== 1 ? 's' : ''}` : 'No ratings yet'}
+                      {totalRatings > 0 ? `${Number(totalRatings).toLocaleString()} votes` : 'No ratings yet'}
                     </span>
                   </div>
                 </div>
@@ -415,13 +437,9 @@ const SeriesDetails = ({ user }) => {
               {series.created_by && (
                 <div className="sd-detail-item">
                   <div className="sd-detail-label">🎭 Created By</div>
-                  <div className="sd-detail-value">{series.created_by}</div>
-                </div>
-              )}
-              {series.genres && (
-                <div className="sd-detail-item">
-                  <div className="sd-detail-label">🎪 Genres</div>
-                  <div className="sd-detail-value">{series.genres}</div>
+                  <div className="sd-detail-value">
+                    {Array.isArray(series.created_by) ? series.created_by.join(', ') : series.created_by}
+                  </div>
                 </div>
               )}
             </div>
@@ -432,19 +450,101 @@ const SeriesDetails = ({ user }) => {
         {seasons.length > 0 && (
           <div className="sd-seasons-section">
             <h2 className="sd-section-title">📺 Seasons ({seasons.length})</h2>
+
+            {/* Season Selector Tabs */}
+            <div className="sd-season-tabs">
+              {seasons.map(season => (
+                <button
+                  key={season.tmdb_id || season.season_number}
+                  className={`sd-season-tab ${selectedSeason?.season_number === season.season_number ? 'active' : ''}`}
+                  onClick={() => setSelectedSeason(season)}
+                >
+                  {season.season_number === 0 ? 'Specials' : `S${season.season_number}`}
+                </button>
+              ))}
+            </div>
+
+            {/* Selected Season Detail */}
+            {selectedSeason && (
+              <div className="sd-season-detail">
+                <div className="sd-season-detail-poster">
+                  {selectedSeasonPoster ? (
+                    <img src={selectedSeasonPoster} alt={selectedSeason.name} />
+                  ) : (
+                    <div className="sd-season-poster-placeholder">
+                      <span>📺</span>
+                      <span>No Poster</span>
+                    </div>
+                  )}
+                </div>
+                <div className="sd-season-detail-info">
+                  <h3 className="sd-season-detail-title">
+                    {selectedSeason.name || `Season ${selectedSeason.season_number}`}
+                  </h3>
+                  <div className="sd-season-detail-meta">
+                    {selectedSeason.season_number !== undefined && (
+                      <span className="sd-season-meta-badge">
+                        📺 Season {selectedSeason.season_number}
+                      </span>
+                    )}
+                    {selectedSeason.episode_count && (
+                      <span className="sd-season-meta-badge">
+                        🎬 {selectedSeason.episode_count} Episodes
+                      </span>
+                    )}
+                    {selectedSeason.air_date && (
+                      <span className="sd-season-meta-badge">
+                        📅 {new Date(selectedSeason.air_date).getFullYear()}
+                      </span>
+                    )}
+                  </div>
+                  {selectedSeason.overview && (
+                    <p className="sd-season-detail-overview">
+                      {selectedSeason.overview}
+                    </p>
+                  )}
+                  {!selectedSeason.overview && (
+                    <p className="sd-season-detail-overview sd-no-overview">
+                      No overview available for this season.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* All Seasons Grid (mini cards) */}
             <div className="sd-seasons-grid">
               {seasons.map(season => {
+                const sPoster = season.poster_path
+                  ? `https://image.tmdb.org/t/p/w185${season.poster_path}`
+                  : null;
+                const isSelected = selectedSeason?.season_number === season.season_number;
                 return (
-                  <div key={season.seasonid} className="sd-season-card">
-                    <div className="sd-season-poster">
-                      <div className="sd-season-no-poster">📺</div>
+                  <div
+                    key={season.tmdb_id || season.season_number}
+                    className={`sd-season-card ${isSelected ? 'selected' : ''}`}
+                    onClick={() => setSelectedSeason(season)}
+                  >
+                    <div className="sd-season-card-poster">
+                      {sPoster ? (
+                        <img src={sPoster} alt={season.name} />
+                      ) : (
+                        <div className="sd-season-no-poster">📺</div>
+                      )}
+                      {isSelected && <div className="sd-season-selected-badge">✓</div>}
                     </div>
-                    <div className="sd-season-info">
-                      <h4>{season.name || `Season`}</h4>
-                      <div className="sd-season-meta">
-                        {season.year_aired && <span>{season.year_aired}</span>}
-                        {season.ratings && <span>⭐ {Number(season.ratings).toFixed(1)}</span>}
+                    <div className="sd-season-card-info">
+                      <div className="sd-season-card-name">
+                        {season.name || `Season ${season.season_number}`}
                       </div>
+                      {season.episode_count && (
+                        <div className="sd-season-card-eps">{season.episode_count} eps</div>
+                      )}
+                      {season.air_date && (
+                        <div className="sd-season-card-year">
+                          {new Date(season.air_date).getFullYear()}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );

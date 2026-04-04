@@ -954,7 +954,7 @@ app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// movie rating
+// movie rating — blends user ratings with the original IMDB vote_count/vote_average
 app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
@@ -965,28 +965,52 @@ app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Rating must be between 1 and 10' });
         }
 
-        const query = `
+        const upsertQuery = `
             INSERT INTO movie_ratings (movie_id, user_id, rating)
             VALUES ($1, $2, $3)
             ON CONFLICT (movie_id, user_id)
             DO UPDATE SET rating = $3
             RETURNING *
         `;
-        await pool.query(query, [movieId, userId, rating]);
+        await pool.query(upsertQuery, [movieId, userId, rating]);
 
-
-        const stats = await pool.query(`
+        // Compute weighted average: blend original IMDB data with user ratings
+        // We treat the original IMDB votes as a baseline and append our user ratings
+        const blendedStats = await pool.query(`
             SELECT 
-                COALESCE(AVG(rating), 0)::numeric(3,1) AS avg_rating,
-                COUNT(*)::int AS total_ratings
-            FROM movie_ratings WHERE movie_id = $1
+                m.vote_average AS imdb_avg,
+                m.vote_count AS imdb_votes,
+                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
+                COALESCE(COUNT(r.rating), 0)::int AS user_count
+            FROM movies m
+            LEFT JOIN movie_ratings r ON r.movie_id = m.id
+            WHERE m.id = $1
+            GROUP BY m.vote_average, m.vote_count
         `, [movieId]);
+
+        let avg_rating, total_ratings;
+        if (blendedStats.rows.length > 0) {
+            const row = blendedStats.rows[0];
+            const imdbAvg = parseFloat(row.imdb_avg || 0);
+            const imdbVotes = parseInt(row.imdb_votes || 0);
+            const userAvg = parseFloat(row.user_avg || 0);
+            const userCount = parseInt(row.user_count || 0);
+            // Weighted average: (imdb_avg * imdb_votes + user_avg * user_count) / (imdb_votes + user_count)
+            total_ratings = imdbVotes + userCount;
+            avg_rating = total_ratings > 0
+                ? ((imdbAvg * imdbVotes + userAvg * userCount) / total_ratings)
+                : 0;
+            avg_rating = Math.round(avg_rating * 10) / 10;
+        } else {
+            avg_rating = parseFloat(rating);
+            total_ratings = 1;
+        }
 
         res.json({
             message: 'Rating saved',
             my_rating: parseFloat(rating),
-            avg_rating: parseFloat(stats.rows[0].avg_rating),
-            total_ratings: stats.rows[0].total_ratings
+            avg_rating: avg_rating,
+            total_ratings: total_ratings
         });
     } catch (error) {
         console.error(error);
@@ -994,7 +1018,7 @@ app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
     }
 });
 
-// rating get
+// rating get — returns blended IMDB + user rating
 app.get('/api/movies/:id/rating', async (req, res) => {
     const movieId = req.params.id;
 
@@ -1015,16 +1039,35 @@ app.get('/api/movies/:id/rating', async (req, res) => {
             } catch (e) { /* ignore */ }
         }
 
-        const stats = await pool.query(`
+        // Blend IMDB votes with user ratings
+        const blendedStats = await pool.query(`
             SELECT 
-                COALESCE(AVG(rating), 0)::numeric(3,1) AS avg_rating,
-                COUNT(*)::int AS total_ratings
-            FROM movie_ratings WHERE movie_id = $1
+                m.vote_average AS imdb_avg,
+                m.vote_count AS imdb_votes,
+                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
+                COALESCE(COUNT(r.rating), 0)::int AS user_count
+            FROM movies m
+            LEFT JOIN movie_ratings r ON r.movie_id = m.id
+            WHERE m.id = $1
+            GROUP BY m.vote_average, m.vote_count
         `, [movieId]);
 
+        let avg_rating = 0, total_ratings = 0;
+        if (blendedStats.rows.length > 0) {
+            const row = blendedStats.rows[0];
+            const imdbAvg = parseFloat(row.imdb_avg || 0);
+            const imdbVotes = parseInt(row.imdb_votes || 0);
+            const userAvg = parseFloat(row.user_avg || 0);
+            const userCount = parseInt(row.user_count || 0);
+            total_ratings = imdbVotes + userCount;
+            avg_rating = total_ratings > 0
+                ? Math.round(((imdbAvg * imdbVotes + userAvg * userCount) / total_ratings) * 10) / 10
+                : 0;
+        }
+
         res.json({
-            avg_rating: parseFloat(stats.rows[0].avg_rating),
-            total_ratings: stats.rows[0].total_ratings,
+            avg_rating: avg_rating,
+            total_ratings: total_ratings,
             my_rating: myRating
         });
     } catch (error) {
@@ -1584,14 +1627,15 @@ app.get('/api/movies/search', async (req, res) => {
         if (!q) {
             return res.json([]);
         }
-        // Prefix match for best UX; ordered lexicographically by title
-        const result = await pool.query(
+        
+        const moviesResult = await pool.query(
             `select 
                m.id, 
                m.title, 
                m.poster_path, 
                m.release_date, 
                m.overview,
+               'movie' as type,
                coalesce(round(avg(r.rating)::numeric, 1), 0)::float as avg_rating,
                coalesce(count(r.rating), 0)::int as rating_count
              from movies m
@@ -1600,9 +1644,32 @@ app.get('/api/movies/search', async (req, res) => {
              group by m.id, m.title, m.poster_path, m.release_date, m.overview
              ORDER bY m.title ASC
              LIMIt 5`,
-            [q + '%']
+            [`%${q}%`]
         );
-        return res.json(result.rows);
+
+        const seriesesResult = await pool.query(
+            `select 
+               s.tmdb_id as id, 
+               s.name as title, 
+               s.poster_path, 
+               s.first_air_date as release_date, 
+               s.overview,
+               'series' as type,
+               coalesce(round(avg(r.rating)::numeric, 1), 0)::float as avg_rating,
+               coalesce(count(r.rating), 0)::int as rating_count
+             from serieses s
+             left join series_ratings r on r.series_id = s.tmdb_id
+             where s.name ilike $1
+             group by s.tmdb_id, s.name, s.poster_path, s.first_air_date, s.overview
+             ORDER bY s.name ASC
+             LIMIt 5`,
+            [`%${q}%`]
+        );
+
+        const combined = [...moviesResult.rows, ...seriesesResult.rows];
+        // Sort by title lexicographically and limit to 8 combined results
+        combined.sort((a,b) => a.title.localeCompare(b.title));
+        return res.json(combined.slice(0, 8));
     } catch (error) {
         console.error('Movie search error:', error);
         return res.status(500).json({ error: 'Failed to fetch movie suggestions' });
@@ -1715,20 +1782,38 @@ app.get('/api/series/:id/rating', async (req, res) => {
             const token = authHeader.split(' ')[1];
             try {
                 const user = jwt.verify(token, process.env.JWT_SECRET);
+                // series_ratings.series_id corresponds to serieses.tmdb_id
                 const userRatingRes = await pool.query('SELECT rating FROM series_ratings WHERE series_id = $1 AND user_id = $2', [id, user.userId]);
                 if (userRatingRes.rows.length > 0) {
-                    myRating = userRatingRes.rows[0].rating;
+                    myRating = parseFloat(userRatingRes.rows[0].rating);
                 }
             } catch (e) { }
         }
 
-        const statsRes = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE tmdb_id = $1', [id]);
-        if (statsRes.rows.length > 0) {
-            res.json({
-                avg_rating: parseFloat(statsRes.rows[0].vote_average || 0),
-                total_ratings: parseInt(statsRes.rows[0].vote_count || 0),
-                my_rating: myRating
-            });
+        // Blend IMDB votes with user ratings
+        const blended = await pool.query(`
+            SELECT 
+                s.vote_average AS imdb_avg,
+                s.vote_count AS imdb_votes,
+                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
+                COALESCE(COUNT(r.rating), 0)::int AS user_count
+            FROM serieses s
+            LEFT JOIN series_ratings r ON r.series_id = s.tmdb_id
+            WHERE s.tmdb_id = $1
+            GROUP BY s.vote_average, s.vote_count
+        `, [id]);
+
+        if (blended.rows.length > 0) {
+            const row = blended.rows[0];
+            const imdbAvg = parseFloat(row.imdb_avg || 0);
+            const imdbVotes = parseInt(row.imdb_votes || 0);
+            const userAvg = parseFloat(row.user_avg || 0);
+            const userCount = parseInt(row.user_count || 0);
+            const total_ratings = imdbVotes + userCount;
+            const avg_rating = total_ratings > 0
+                ? Math.round(((imdbAvg * imdbVotes + userAvg * userCount) / total_ratings) * 10) / 10
+                : 0;
+            res.json({ avg_rating, total_ratings, my_rating: myRating });
         } else {
             res.json({ avg_rating: 0, total_ratings: 0, my_rating: myRating });
         }
@@ -1744,6 +1829,11 @@ app.post('/api/series/:id/rate', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
+        if (!rating || rating < 1 || rating > 10) {
+            return res.status(400).json({ error: 'Rating must be between 1 and 10' });
+        }
+
+        // series_ratings uses series_id which corresponds to serieses.tmdb_id
         await pool.query(
             `INSERT INTO series_ratings (series_id, user_id, rating) 
              VALUES ($1, $2, $3) 
@@ -1752,13 +1842,37 @@ app.post('/api/series/:id/rate', authenticateToken, async (req, res) => {
             [id, userId, rating]
         );
 
-        const result = await pool.query('SELECT vote_average, vote_count FROM serieses WHERE tmdb_id = $1', [id]);
+        // Compute blended rating: IMDB base + user ratings
+        const blended = await pool.query(`
+            SELECT 
+                s.vote_average AS imdb_avg,
+                s.vote_count AS imdb_votes,
+                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
+                COALESCE(COUNT(r.rating), 0)::int AS user_count
+            FROM serieses s
+            LEFT JOIN series_ratings r ON r.series_id = s.tmdb_id
+            WHERE s.tmdb_id = $1
+            GROUP BY s.vote_average, s.vote_count
+        `, [id]);
+
+        let avg_rating = parseFloat(rating), total_ratings = 1;
+        if (blended.rows.length > 0) {
+            const row = blended.rows[0];
+            const imdbAvg = parseFloat(row.imdb_avg || 0);
+            const imdbVotes = parseInt(row.imdb_votes || 0);
+            const userAvg = parseFloat(row.user_avg || 0);
+            const userCount = parseInt(row.user_count || 0);
+            total_ratings = imdbVotes + userCount;
+            avg_rating = total_ratings > 0
+                ? Math.round(((imdbAvg * imdbVotes + userAvg * userCount) / total_ratings) * 10) / 10
+                : 0;
+        }
 
         res.json({
             message: 'Rating saved successfully',
-            my_rating: rating,
-            avg_rating: parseFloat(result.rows[0]?.vote_average || 0),
-            total_ratings: parseInt(result.rows[0]?.vote_count || 0)
+            my_rating: parseFloat(rating),
+            avg_rating: avg_rating,
+            total_ratings: total_ratings
         });
     } catch (error) {
         console.error(error);

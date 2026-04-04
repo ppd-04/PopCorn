@@ -79,10 +79,14 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [showSuggestions]);
 
-  const gotoMovie = (id) => {
+  const gotoMovie = (id, type) => {
     setShowSuggestions(false);
     setSuggestions([]);
-    navigate(`/movie/${id}`);
+    if (type === 'series') {
+      navigate(`/series/${id}`);
+    } else {
+      navigate(`/movie/${id}`);
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -96,7 +100,7 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
     } else if (e.key === 'Enter') {
       if (suggestions[highlighted]) {
         e.preventDefault();
-        gotoMovie(suggestions[highlighted].id);
+        gotoMovie(suggestions[highlighted].id, suggestions[highlighted].type);
       }
     } else if (e.key === 'Escape') {
       setShowSuggestions(false);
@@ -184,9 +188,9 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
 
               return (
                 <li
-                  key={s.id}
+                  key={`${s.type}-${s.id}`}
                   className={idx === highlighted ? 'highlighted' : ''}
-                  onMouseDown={() => gotoMovie(s.id)}
+                  onMouseDown={() => gotoMovie(s.id, s.type)}
                   onPointerEnter={handleEnter}
                   onPointerMove={handleMove}
                   onPointerLeave={handleLeave}
@@ -199,7 +203,7 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
                     )}
                     <div className="suggestion-text">
                       <div className="suggestion-title">{s.title}</div>
-                      <div className="suggestion-sub">Movie{year ? ` • ${year}` : ''}</div>
+                      <div className="suggestion-sub">{!s.type || s.type === 'movie' ? 'Movie' : 'Series'}{year ? ` • ${year}` : ''}</div>
                     </div>
 
                     {tooltipIndex === idx && (
@@ -216,7 +220,7 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
                           <div className="tooltip-content">
                             <div className="tooltip-title">{s.title}</div>
                             <div className="tooltip-meta">
-                              <span>Movie</span>
+                              <span>{!s.type || s.type === 'movie' ? 'Movie' : 'Series'}</span>
                               {year && <span>• {year}</span>}
                               {rating !== null && (
                                 <span className="meta-pill">⭐ {rating}</span>

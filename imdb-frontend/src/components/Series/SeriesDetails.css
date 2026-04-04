@@ -46,7 +46,7 @@
 }
 
 .sd-poster-wrap {
-  flex: 0 0 320px;
+  flex: 0 0 300px;
 }
 
 .sd-poster {
@@ -56,8 +56,8 @@
 }
 
 .sd-poster-placeholder {
-  width: 320px;
-  height: 480px;
+  width: 300px;
+  height: 450px;
   background: rgba(255, 255, 255, 0.05);
   border-radius: 16px;
   display: flex;
@@ -96,7 +96,7 @@
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .sd-status-pill {
@@ -129,6 +129,31 @@
   font-weight: 500;
   background: rgba(245, 197, 24, 0.1);
   color: rgba(245, 197, 24, 0.8);
+}
+
+/* Genre Tags */
+.sd-genre-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.sd-genre-tag {
+  padding: 4px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.65);
+  transition: all 0.2s ease;
+}
+
+.sd-genre-tag:hover {
+  background: rgba(245, 197, 24, 0.1);
+  border-color: rgba(245, 197, 24, 0.3);
+  color: #f5c518;
 }
 
 /* Action Buttons */
@@ -166,6 +191,12 @@
   background: rgba(245, 197, 24, 0.15);
   border-color: #f5c518;
   color: #f5c518;
+}
+
+.sd-action-btn.active.fav {
+  background: rgba(255, 80, 120, 0.15);
+  border-color: #ff5080;
+  color: #ff5080;
 }
 
 .sd-action-btn .btn-icon {
@@ -316,43 +347,174 @@
 
 /* ========== SEASONS SECTION ========== */
 .sd-seasons-section {
-  margin-bottom: 40px;
+  margin-bottom: 50px;
 }
 
+/* Season Tabs */
+.sd-season-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.sd-season-tab {
+  padding: 8px 18px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: 'Inter', sans-serif;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.sd-season-tab:hover {
+  background: rgba(245, 197, 24, 0.1);
+  border-color: rgba(245, 197, 24, 0.3);
+  color: #f5c518;
+}
+
+.sd-season-tab.active {
+  background: rgba(245, 197, 24, 0.2);
+  border-color: #f5c518;
+  color: #f5c518;
+  box-shadow: 0 0 12px rgba(245, 197, 24, 0.2);
+}
+
+/* Season Detail Panel */
+.sd-season-detail {
+  display: flex;
+  gap: 28px;
+  background: rgba(15, 15, 20, 0.6);
+  border: 1px solid rgba(245, 197, 24, 0.15);
+  border-radius: 20px;
+  padding: 28px;
+  margin-bottom: 28px;
+  backdrop-filter: blur(16px);
+  animation: sdFadeIn 0.25s ease;
+}
+
+.sd-season-detail-poster {
+  flex: 0 0 160px;
+}
+
+.sd-season-detail-poster img {
+  width: 160px;
+  border-radius: 12px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  object-fit: cover;
+}
+
+.sd-season-poster-placeholder {
+  width: 160px;
+  height: 240px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 1.8rem;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+}
+
+.sd-season-poster-placeholder span:last-child {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.sd-season-detail-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sd-season-detail-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 12px;
+}
+
+.sd-season-detail-meta {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.sd-season-meta-badge {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: rgba(245, 197, 24, 0.1);
+  border: 1px solid rgba(245, 197, 24, 0.2);
+  color: rgba(245, 197, 24, 0.9);
+}
+
+.sd-season-detail-overview {
+  font-size: 0.97rem;
+  line-height: 1.75;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.sd-season-detail-overview.sd-no-overview {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+}
+
+/* Seasons Grid */
 .sd-seasons-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 14px;
 }
 
 .sd-season-card {
-  display: flex;
-  gap: 14px;
+  cursor: pointer;
+  border-radius: 12px;
+  overflow: hidden;
   background: rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 12px;
   transition: all 0.25s ease;
-  backdrop-filter: blur(10px);
+  position: relative;
 }
 
 .sd-season-card:hover {
-  border-color: rgba(245, 197, 24, 0.25);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  border-color: rgba(245, 197, 24, 0.3);
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
-.sd-season-poster {
-  flex: 0 0 80px;
-  height: 120px;
-  border-radius: 10px;
+.sd-season-card.selected {
+  border-color: #f5c518;
+  box-shadow: 0 0 0 2px rgba(245, 197, 24, 0.3), 0 8px 24px rgba(0,0,0,0.4);
+}
+
+.sd-season-card-poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2/3;
   overflow: hidden;
 }
 
-.sd-season-poster img {
+.sd-season-card-poster img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.sd-season-card:hover .sd-season-card-poster img {
+  transform: scale(1.05);
 }
 
 .sd-season-no-poster {
@@ -362,40 +524,49 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
-  border-radius: 10px;
+  font-size: 2rem;
+  aspect-ratio: 2/3;
 }
 
-.sd-season-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.sd-season-info h4 {
-  font-size: 1rem;
-  color: #fff;
-  margin-bottom: 6px;
-  font-weight: 600;
-}
-
-.sd-season-meta {
+.sd-season-selected-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  background: #f5c518;
+  color: #000;
+  border-radius: 50%;
   display: flex;
-  gap: 8px;
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 6px;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
-.sd-season-meta span {
-  background: rgba(255, 255, 255, 0.06);
-  padding: 2px 8px;
-  border-radius: 6px;
+.sd-season-card-info {
+  padding: 10px 12px;
 }
 
-.sd-season-overview {
-  font-size: 0.82rem;
-  color: rgba(255, 255, 255, 0.5);
-  line-height: 1.4;
+.sd-season-card-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sd-season-card-eps {
+  font-size: 0.72rem;
+  color: rgba(245, 197, 24, 0.7);
+}
+
+.sd-season-card-year {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.4);
 }
 
 /* ========== COMMENTS ========== */
@@ -670,6 +841,21 @@
 }
 
 /* Responsive */
+@media (max-width: 900px) {
+  .sd-season-detail {
+    flex-direction: column;
+  }
+
+  .sd-season-detail-poster {
+    flex: none;
+    text-align: center;
+  }
+
+  .sd-season-detail-poster img {
+    margin: 0 auto;
+  }
+}
+
 @media (max-width: 768px) {
   .sd-hero {
     flex-direction: column;
@@ -680,12 +866,12 @@
     text-align: center;
   }
   .sd-poster {
-    max-width: 280px;
+    max-width: 260px;
     margin: 0 auto;
   }
   .sd-poster-placeholder {
-    width: 280px;
-    height: 420px;
+    width: 260px;
+    height: 390px;
     margin: 0 auto;
   }
   .sd-title {
@@ -705,7 +891,7 @@
     justify-content: center;
   }
   .sd-seasons-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   }
 }
 
@@ -718,5 +904,12 @@
   }
   .sd-star {
     font-size: 1.3rem;
+  }
+  .sd-season-tabs {
+    gap: 6px;
+  }
+  .sd-season-tab {
+    padding: 6px 12px;
+    font-size: 0.8rem;
   }
 }

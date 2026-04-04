@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from './supabaseClient';
 import './App.css';
 import './HomePage.css';
 import Navbar from './Navbar';
@@ -20,12 +21,22 @@ import DiscussionRoom from './components/Social/DiscussionRoom';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import CrewsPage from './components/Crews/CrewsPage';
 import GenreRows from './components/Home/GenreRows';
+import TrailerRow from './components/Home/TrailerRow';
+
+const HERO_BACKDROPS = [
+  'https://image.tmdb.org/t/p/original/8Y43POKjjKDGI9mh89NW0Pn1Z.jpg', // Interstellar
+  'https://image.tmdb.org/t/p/original/r1mweSwH225GZf3sD7D1b8s3Wl0.jpg', // Dune
+  'https://image.tmdb.org/t/p/original/mZjZgY6ObiKtVuKVDrnS9VnuNlE.jpg', // The Dark Knight
+  'https://image.tmdb.org/t/p/original/5mzr6JZbrqnqD8rCEvPhuCE5Fw2.jpg', // Gladiator
+  'https://image.tmdb.org/t/p/original/nDLylQOoI8yWdX2eE2dJgtoxtn4.jpg'  // The Matrix
+];
 
 function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [user, setUser] = useState(null);
   const [showLogin, setShowLogin] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [heroBg, setHeroBg] = useState('');
 
   // Always dark mode
   useEffect(() => {
@@ -37,6 +48,38 @@ function App() {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
+    
+    async function fetchRandomBg() {
+      try {
+        const { data, error } = await supabase
+          .from('movies')
+          .select('backdrop_path, movie_genres(genres(name))')
+          .not('backdrop_path', 'is', null)
+          .order('popularity', { ascending: false })
+          .limit(50);
+
+        if (data && !error && data.length > 0) {
+          // Filter out romantic movies
+          const safeMovies = data.filter(m => {
+            if (!m.movie_genres) return true;
+            return !m.movie_genres.some(mg => mg.genres && mg.genres.name.toLowerCase() === 'romance');
+          });
+          
+          if (safeMovies.length > 0) {
+            const randomMovie = safeMovies[Math.floor(Math.random() * safeMovies.length)];
+            const path = randomMovie.backdrop_path;
+            const fullUrl = path.startsWith('http') ? path : `https://image.tmdb.org/t/p/original${path}`;
+            setHeroBg(fullUrl);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching hero bg:", err);
+      }
+      // Fallback
+      setHeroBg(HERO_BACKDROPS[Math.floor(Math.random() * HERO_BACKDROPS.length)]);
+    }
+    fetchRandomBg();
   }, []);
 
   const handleLoginSuccess = (userData) => {
@@ -72,7 +115,7 @@ function App() {
             <Route path="/" element={
               <>
                 {/* Hero Welcome Section */}
-                <div className="hero">
+                <div className="hero" style={heroBg ? { backgroundImage: `linear-gradient(to right, rgba(0, 0, 0, 0.95) 20%, rgba(0, 0, 0, 0.4) 100%), url(${heroBg})`, backgroundSize: 'cover', backgroundPosition: 'center', minHeight: '80vh' } : {}}>
                   <div className="hero__content">
                     <h1 className="hero__title">Welcome to PopCorn</h1>
                     <p className="hero__subtitle">
@@ -82,11 +125,6 @@ function App() {
                     <div className="hero__buttons">
                       <Link to="/movies" style={{ textDecoration: 'none' }}>
                         <button className="btn btn-primary">Wander Through Cinematic Realms</button>
-                      </Link>
-                      <Link to={user ? "/watchlist" : "#"} style={{ textDecoration: 'none' }} onClick={!user ? () => setShowLogin(true) : undefined}>
-                        <button className="btn btn-secondary">
-                          {user ? `My Watchlist (${user.username})` : 'My Movie Treasury'}
-                        </button>
                       </Link>
                     </div>
                   </div>
@@ -128,6 +166,8 @@ function App() {
                     </div>
                   </div>
                 </div>
+
+                <TrailerRow />
 
                 {/* Genre-Based Movie Rows */}
                 <GenreRows />

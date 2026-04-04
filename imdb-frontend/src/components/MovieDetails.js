@@ -304,9 +304,9 @@ const MovieDetails = ({ user }) => {
                     {Number(avgRating || 0) > 0 ? Number(avgRating).toFixed(1) : (movie.vote_average ? Number(movie.vote_average).toFixed(1) : '—')}
                   </span>
                   <div className="md-avg-meta">
-                    <span className="md-avg-label">IMDb Rating</span>
+                    <span className="md-avg-label">PopCorn Rating</span>
                     <span className="md-avg-count">
-                      {totalRatings > 0 ? `${totalRatings} rating${totalRatings !== 1 ? 's' : ''}` : (movie.vote_count ? `${movie.vote_count} votes` : 'No ratings yet')}
+                      {totalRatings > 0 ? `${Number(totalRatings).toLocaleString()} votes` : (movie.vote_count ? `${Number(movie.vote_count).toLocaleString()} votes` : 'No ratings yet')}
                     </span>
                   </div>
                 </div>
