@@ -112,7 +112,12 @@ function MessengerPanel({ user, isOpen, onClose }) {
                         ) : (
                             friends.map(f => (
                                 <div key={f.user_id} className="messenger-friend-row" onClick={() => openChat(f)}>
-                                    <img src={f.profile_picture || 'https://via.placeholder.com/40'} alt={f.username} className="messenger-friend-avatar" />
+                                    <div className="messenger-friend-avatar">
+                                        {f.profile_picture
+                                            ? <img src={f.profile_picture} alt={f.username} />
+                                            : (f.full_name || f.username || '?').charAt(0).toUpperCase()
+                                        }
+                                    </div>
                                     <div>
                                         <h4 style={{ margin: 0 }}>{f.full_name || f.username}</h4>
                                         <span style={{ fontSize: '12px', opacity: 0.6 }}>Tap to chat</span>

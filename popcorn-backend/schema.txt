@@ -1,0 +1,386 @@
+TABLES: movies, direct_messages, discussions, discussion_participants, movie_ratings, genres, discussion_messages, discussion_invites, user_chat_messages, movie_genres, movie_comments, user_favourites, user_watched, user_ai_cache, users, profiles, wishlist, admin, awards, series, episodes, history, social_posts, preferenceprofile, forum_post, content, review, directors, seasons, watchlist, post_comments, post_likes, favourite_people, user_interests, user_activity, movie_cast, friend_requests, notifications, serieses, archived_user_history, people, season, episode
+
+
+Table movies:
+  updated_at (timestamp with time zone)
+  tmdb_id (integer)
+  popularity (real)
+  adult (boolean)
+  video (boolean)
+  runtime (integer)
+  budget (bigint)
+  revenue (bigint)
+  created_at (timestamp with time zone)
+  id (bigint)
+  release_date (date)
+  vote_average (numeric)
+  vote_count (integer)
+  title (text)
+  original_title (text)
+  overview (text)
+  tagline (text)
+  original_language (text)
+  poster_path (text)
+  backdrop_path (text)
+  status (text)
+
+Table direct_messages:
+  id (integer)
+  sender_id (integer)
+  receiver_id (integer)
+  created_at (timestamp with time zone)
+  read_at (timestamp with time zone)
+  message (text)
+
+Table discussions:
+  max_participants (integer)
+  created_at (timestamp with time zone)
+  movie_id (integer)
+  id (integer)
+  creator_id (integer)
+  title (character varying)
+  access_level (character varying)
+
+Table discussion_participants:
+  discussion_id (integer)
+  user_id (integer)
+  joined_at (timestamp with time zone)
+  role (character varying)
+
+Table movie_ratings:
+  rating_id (integer)
+  movie_id (integer)
+  user_id (integer)
+  rating (numeric)
+  created_at (timestamp without time zone)
+
+Table genres:
+  id (integer)
+  name (text)
+
+Table discussion_messages:
+  id (integer)
+  discussion_id (integer)
+  sender_id (integer)
+  created_at (timestamp with time zone)
+  message (text)
+
+Table discussion_invites:
+  discussion_id (integer)
+  inviter_id (integer)
+  invitee_id (integer)
+  created_at (timestamp with time zone)
+  status (character varying)
+
+Table user_chat_messages:
+  id (integer)
+  user_id (integer)
+  created_at (timestamp with time zone)
+  role (character varying)
+  content (text)
+
+Table movie_genres:
+  movie_id (bigint)
+  genre_id (integer)
+
+Table movie_comments:
+  comment_id (integer)
+  movie_id (integer)
+  user_id (integer)
+  created_at (timestamp without time zone)
+  updated_at (timestamp without time zone)
+  content (text)
+
+Table user_favourites:
+  id (integer)
+  user_id (integer)
+  movie_id (integer)
+  created_at (timestamp without time zone)
+
+Table user_watched:
+  id (integer)
+  user_id (integer)
+  movie_id (integer)
+  created_at (timestamp without time zone)
+
+Table user_ai_cache:
+  user_id (integer)
+  recommendations (jsonb)
+  last_updated (timestamp with time zone)
+
+Table users:
+  is_anonymous (boolean)
+  id (uuid)
+  email_confirmed_at (timestamp with time zone)
+  invited_at (timestamp with time zone)
+  confirmation_sent_at (timestamp with time zone)
+  recovery_sent_at (timestamp with time zone)
+  email_change_sent_at (timestamp with time zone)
+  last_sign_in_at (timestamp with time zone)
+  raw_app_meta_data (jsonb)
+  raw_user_meta_data (jsonb)
+  is_super_admin (boolean)
+  created_at (timestamp with time zone)
+  updated_at (timestamp with time zone)
+  phone_confirmed_at (timestamp with time zone)
+  phone_change_sent_at (timestamp with time zone)
+  confirmed_at (timestamp with time zone)
+  email_change_confirm_status (smallint)
+  banned_until (timestamp with time zone)
+  reauthentication_sent_at (timestamp with time zone)
+  is_sso_user (boolean)
+  deleted_at (timestamp with time zone)
+  user_id (integer)
+  date_joined (date)
+  date_of_birth (date)
+  is_admin (boolean)
+  instance_id (uuid)
+  username (character varying)
+  password (character varying)
+  email (character varying)
+  recovery_token (character varying)
+  full_name (character varying)
+  phone_change (text)
+  gender (character varying)
+  phone_number (character varying)
+  address (text)
+  profile_picture (text)
+  email_change_token_new (character varying)
+  email_change (character varying)
+  phone_change_token (character varying)
+  aud (character varying)
+  role (character varying)
+  email (character varying)
+  encrypted_password (character varying)
+  email_change_token_current (character varying)
+  phone (text)
+  confirmation_token (character varying)
+  reauthentication_token (character varying)
+
+Table profiles:
+  id (uuid)
+  updated_at (timestamp with time zone)
+  username (text)
+  avatar_url (text)
+
+Table wishlist:
+  id (integer)
+  user_id (integer)
+  movie_id (integer)
+  created_at (timestamp without time zone)
+
+Table admin:
+  admin_id (integer)
+  admin_username (character varying)
+  email (character varying)
+  password (character varying)
+
+Table awards:
+  award_id (integer)
+  award_name (character varying)
+
+Table series:
+  series_id (integer)
+  content_id (integer)
+  numofseasons (integer)
+  start_year (integer)
+  seriesname (character varying)
+
+Table episodes:
+  episodeid (integer)
+  series_id (integer)
+  ratings (integer)
+  episode_name (character varying)
+
+Table history:
+  historyid (integer)
+  user_id (integer)
+  contentid (integer)
+  watchdate (date)
+  completion (integer)
+
+Table social_posts:
+  post_id (integer)
+  user_id (integer)
+  created_at (timestamp without time zone)
+  updated_at (timestamp without time zone)
+  content (text)
+  image (text)
+
+Table preferenceprofile:
+  exploration_metric (integer)
+  user_id (integer)
+  total_watched (integer)
+  date_created (date)
+  profileid (integer)
+  preferredgenre (character varying)
+  style_preference (character varying)
+
+Table forum_post:
+  forumid (integer)
+  user_id (integer)
+  reactioncount (integer)
+  timestamp (timestamp without time zone)
+  content (character varying)
+
+Table content:
+  contentid (integer)
+  contenttype (character varying)
+  content_name (character varying)
+  description (character varying)
+  poster (character varying)
+
+Table review:
+  review_id (integer)
+  content_id (integer)
+  user_id (integer)
+  personal_rating (integer)
+  review_date (date)
+  review_content (character varying)
+
+Table directors:
+  director_id (integer)
+  date_of_birth (date)
+  director_name (character varying)
+  first_movie (character varying)
+
+Table seasons:
+  seasonid (integer)
+  series_id (integer)
+  ratings (integer)
+  year_aired (integer)
+  name (character varying)
+
+Table watchlist:
+  watchlist_id (integer)
+  user_id (integer)
+  contentid (integer)
+  movie_id (integer)
+
+Table post_comments:
+  comment_id (integer)
+  post_id (integer)
+  user_id (integer)
+  created_at (timestamp without time zone)
+  content (text)
+
+Table post_likes:
+  like_id (integer)
+  post_id (integer)
+  user_id (integer)
+  created_at (timestamp without time zone)
+
+Table favourite_people:
+  user_id (integer)
+  person_id (integer)
+  created_at (timestamp without time zone)
+  id (integer)
+  person_name (character varying)
+  person_role (character varying)
+  profile_path (text)
+
+Table user_interests:
+  id (integer)
+  user_id (integer)
+  genre_id (integer)
+  created_at (timestamp without time zone)
+
+Table user_activity:
+  id (integer)
+  user_id (integer)
+  movie_id (integer)
+  created_at (timestamp without time zone)
+  activity_type (character varying)
+  details (text)
+
+Table movie_cast:
+  movie_id (integer)
+  person_id (integer)
+  cast_order (integer)
+  character (text)
+  credit_id (text)
+
+Table friend_requests:
+  id (integer)
+  requester_id (integer)
+  receiver_id (integer)
+  created_at (timestamp with time zone)
+  updated_at (timestamp with time zone)
+  status (character varying)
+
+Table notifications:
+  id (integer)
+  user_id (integer)
+  sender_id (integer)
+  created_at (timestamp with time zone)
+  related_id (integer)
+  is_read (boolean)
+  type (character varying)
+  message (text)
+
+Table serieses:
+  tmdb_id (bigint)
+  first_air_date (date)
+  last_air_date (date)
+  popularity (numeric)
+  vote_average (numeric)
+  vote_count (integer)
+  in_production (boolean)
+  number_of_seasons (integer)
+  number_of_episodes (integer)
+  homepage (text)
+  poster_path (text)
+  backdrop_path (text)
+  name (text)
+  original_name (text)
+  overview (text)
+  status (text)
+  type (text)
+  original_language (text)
+  genres (ARRAY)
+  created_by (ARRAY)
+
+Table archived_user_history:
+  archive_id (integer)
+  original_user_id (integer)
+  original_created_at (timestamp without time zone)
+  archived_at (timestamp without time zone)
+  content (text)
+  entity_type (character varying)
+  username (character varying)
+  email (character varying)
+
+Table people:
+  adult (boolean)
+  gender (integer)
+  birthday (date)
+  popularity (double precision)
+  id (integer)
+  place_of_birth (text)
+  profile_url (text)
+  name (text)
+  profile_path (text)
+  known_for_department (text)
+  biography (text)
+
+Table season:
+  tmdb_id (bigint)
+  series_id (bigint)
+  season_number (integer)
+  air_date (date)
+  episode_count (integer)
+  poster_path (text)
+  name (text)
+  overview (text)
+
+Table episode:
+  tmdb_id (bigint)
+  series_id (bigint)
+  season_number (integer)
+  episode_number (integer)
+  air_date (date)
+  vote_average (numeric)
+  vote_count (integer)
+  name (text)
+  overview (text)
+  still_path (text)
