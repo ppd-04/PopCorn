@@ -564,7 +564,6 @@ app.get('/api/browse/related', optionalAuthenticate, async (req, res) => {//beca
     }
 });
 
-// ai er ta, amar favorite feature
 app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
     try {
         const userId = req.user ? (req.user.userId || req.user.id || req.user.user_id) : null;
@@ -579,7 +578,7 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
             });
         }
 
-        // gorib tai token shesh hoye jai tai cache kore rakhsi
+        // Tier 1: Check Cache (only if not forcing refresh)
         if (!forceRefresh) {
             const cacheRes = await pool.query(
                 `select recommendations, last_updated from user_ai_cache 
@@ -587,7 +586,7 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
                 [userId]
             );
             if (cacheRes.rows.length > 0) {
-                console.log(`[Browse] AI: Returning cached results for User ${userId}`);
+                console.log(`[Browse] AI: Returning fresh cache for User ${userId}`);
                 return res.json({
                     recommendations: cacheRes.rows[0].recommendations,
                     cached_at: cacheRes.rows[0].last_updated
@@ -595,125 +594,115 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
             }
         }
 
-        console.log(`[Browse] AI: Generating new recommendations for User ${userId} (force=${forceRefresh})`);
+        // Tier 2: Try Gemini Generation
+        console.log(`[Browse] AI: Generating new picks for User ${userId} (force=${forceRefresh})`);
+        
+        // Helper for popular fallback
+        const getPopularFallback = async () => {
+            const popRes = await pool.query(`
+                SELECT id, title, poster_path, backdrop_path, vote_average 
+                FROM movies 
+                WHERE vote_average >= 7.5 
+                ORDER BY random() 
+                LIMIT 10
+            `);
+            return popRes.rows.map(m => ({
+                ...m,
+                ai_note: "Highly recommended trending masterpiece selected for you."
+            }));
+        };
 
-        // shobkichu milano
-        const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
-            pool.query('select g.name from user_interests ui join genres g on ui.genre_id = g.id where ui.user_id = $1', [userId]),
-            pool.query('select m.title, uf.created_at from user_favourites uf join movies m on uf.movie_id = m.id where uf.user_id = $1 order by uf.created_at desc limit 5', [userId]),
-            pool.query('select m.title, w.created_at from wishlist w join movies m on w.movie_id = m.id where w.user_id = $1 order by w.created_at desc limit 5', [userId]),
-            pool.query('select m.title, r.rating, r.created_at from movie_ratings r join movies m on r.movie_id = m.id where r.user_id = $1 order by r.created_at desc limit 10', [userId]),
-            pool.query('select m.title, c.content, c.created_at from movie_comments c join movies m on c.movie_id = m.id where c.user_id = $1 order by c.created_at desc limit 5', [userId]),
-            pool.query('select content, created_at from social_posts where user_id = $1 order by created_at desc limit 5', [userId]),
-            pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 15', [userId])
-        ]);
+        try {
+            // Collecting user timeline/context
+            const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
+                pool.query('select g.name from user_interests ui join genres g on ui.genre_id = g.id where ui.user_id = $1', [userId]),
+                pool.query('select m.title, uf.created_at from user_favourites uf join movies m on uf.movie_id = m.id where uf.user_id = $1 order by uf.created_at desc limit 5', [userId]),
+                pool.query('select m.title, w.created_at from wishlist w join movies m on w.movie_id = m.id where w.user_id = $1 order by w.created_at desc limit 5', [userId]),
+                pool.query('select m.title, r.rating, r.created_at from movie_ratings r join movies m on r.movie_id = m.id where r.user_id = $1 order by r.created_at desc limit 10', [userId]),
+                pool.query('select m.title, c.content, c.created_at from movie_comments c join movies m on c.movie_id = m.id where c.user_id = $1 order by c.created_at desc limit 5', [userId]),
+                pool.query('select content, created_at from social_posts where user_id = $1 order by created_at desc limit 5', [userId]),
+                pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 15', [userId])
+            ]);
 
-        const timelineStrings = [
-            `Interests/Favorite Genres: ${genres.rows.map(g => g.name).join(', ') || 'Unknown'}`,
-            ...favs.rows.map(f => `[Favorite] Added ${f.title} at ${f.created_at}`),
-            ...wishlist.rows.map(w => `[Watchlist] Added ${w.title} at ${w.created_at}`),
-            ...ratings.rows.map(r => `[Rating] Rated ${r.title} as ${r.rating}/10 at ${r.created_at}`),
-            ...comments.rows.map(c => `[Comment] On ${c.title}: "${c.content}" at ${c.created_at}`),
-            ...posts.rows.map(p => `[Social Post] "${p.content}" at ${p.created_at}`),
-            ...chats.rows.reverse().map(ch => `[Chat Log] ${ch.role.toUpperCase()}: "${ch.content}" at ${ch.created_at}`)
-        ];
+            const timelineStrings = [
+                `Interests/Favorite Genres: ${genres.rows.map(g => g.name).join(', ') || 'Unknown'}`,
+                ...favs.rows.map(f => `[Favorite] Added ${f.title} at ${f.created_at}`),
+                ...wishlist.rows.map(w => `[Watchlist] Added ${w.title} at ${w.created_at}`),
+                ...ratings.rows.map(r => `[Rating] Rated ${r.title} as ${r.rating}/10 at ${r.created_at}`),
+                ...comments.rows.map(c => `[Comment] On ${c.title}: "${c.content}" at ${c.created_at}`),
+                ...posts.rows.map(p => `[Social Post] "${p.content}" at ${p.created_at}`),
+                ...chats.rows.reverse().map(ch => `[Chat Log] ${ch.role.toUpperCase()}: "${ch.content}" at ${ch.created_at}`)
+            ];
 
-        // 3. Call Gemini
-        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
-        const systemPrompt = `
-You are a highly personalized movie recommendation AI. 
-Analyze the USER TIMELINE below. 
-Pick 10 movies for the user. 
-CRITICAL RULE: 
-- Recent activity (last few hours) is MUCH more important than old activity.
-- Diversify the picks based on ratings, chat log, and interests.
-- For each movie, write a BOLD, context-aware personalized message (max 20 words). 
-- Avoid movies the user has already favorited or rated highly.
+            const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
+            const systemPrompt = `Analyze USER TIMELINE and pick 10 movies. Recent activity is priority. Diversify. BOLD contexto-aware message (max 20 words). FORMAT: #AI_REC: [SQL_QUERY] | [MESSAGE]. QUERY: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%NAME%' LIMIT 1`;
 
-SCHEMA:
-- movies (id, title, poster_path, backdrop_path, vote_average)
-- movie_genres (movie_id, genre_id)
-- genres (id, name)
-- To filter by genre name, JOIN movies m ON m.id = mg.movie_id JOIN movie_genres mg ON m.id = mg.movie_id JOIN genres g ON mg.genre_id = g.id WHERE g.name ILIKE '%genre%'
+            const aiController = new AbortController();
+            const aiTimeout = setTimeout(() => aiController.abort(), 15000); // 15s timeout for persistence
 
-FORMAT: Return exactly 10 blocks. Each block MUST be:
-#AI_REC: [SQL_QUERY_TO_FETCH_MOVIE_BY_TITLE] | [YOUR_PERSONALIZED_MESSAGE]
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }]
+                }),
+                signal: aiController.signal
+            });
+            clearTimeout(aiTimeout);
 
-SQL QUERY MUST ONLY BE: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE_NAME%' LIMIT 1
-DO NOT try to add a genre column to this query.
-`;
+            if (!aiRes.ok) throw new Error('Gemini API Error');
 
-        const aiController = new AbortController();
-        const aiTimeout = setTimeout(() => aiController.abort(), 45000);
+            const aiData = await aiRes.json();
+            const aiText = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const recMatches = aiText.split('#AI_REC:').slice(1);
+            const recommendations = [];
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    { role: 'user', parts: [{ text: `SYSTEM: ${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }
-                ]
-            }),
-            signal: aiController.signal
-        });
-        clearTimeout(aiTimeout);
-
-        if (!response.ok) {
-            const errText = await response.text();
-            console.error(`[Browse] Gemini API failed (${response.status}):`, errText);
-            throw new Error(`Gemini API failed with status ${response.status}`);
-        }
-        const data = await response.json();
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        // haedball er moto ai er payload alada korlam
-        const recMatches = aiText.split('#AI_REC:').slice(1);
-        const recommendations = [];
-
-        for (const block of recMatches) {
-            const [queryPart, notePart] = block.split('|');
-            if (!queryPart || !notePart) continue;
-
-            try {
-                const sqlQuery = queryPart.trim();
-                const aiNote = notePart.trim();
-                const movieRes = await pool.query(sqlQuery);
-                if (movieRes.rows.length > 0) {
-                    recommendations.push({ ...movieRes.rows[0], ai_note: aiNote });
-                }
-            } catch (queryErr) {
-                console.error('AI Suggestion query failed (skipping):', queryErr.message);
+            for (const block of recMatches) {
+                const [queryPart, notePart] = block.split('|');
+                if (!queryPart || !notePart) continue;
+                try {
+                    const movieRes = await pool.query(queryPart.trim());
+                    if (movieRes.rows.length > 0) {
+                        recommendations.push({ ...movieRes.rows[0], ai_note: notePart.trim() });
+                    }
+                } catch (e) { /* skip bad query */ }
             }
-        }
 
-        // cache update
-        if (recommendations.length > 0) {
-            try {
+            if (recommendations.length > 0) {
                 await pool.query(
                     `insert into user_ai_cache (user_id, recommendations, last_updated)
                      values ($1, $2, now())
-                     on conflict (user_id) do update 
-                     set recommendations = excluded.recommendations, last_updated = now()`,
+                     on conflict (user_id) do update set recommendations = excluded.recommendations, last_updated = now()`,
                     [userId, JSON.stringify(recommendations)]
                 );
-                console.log(`[Browse] AI: Updated cache for User ${userId}`);
-            } catch (cacheErr) {
-                console.error(`[Browse] AI: Cache update failed for UID ${userId}:`, cacheErr.message);
+                return res.json({ recommendations, cached_at: new Date() });
+            } else {
+                throw new Error('No recommendations generated');
             }
-        }
 
-        return res.json({
-            recommendations,
-            cached_at: new Date()
-        });
+        } catch (genError) {
+            console.error(`[Browse] AI: Generation failed for User ${userId}, using fallback. ERROR:`, genError.message);
+            
+            // Tier 3: Stale Cache Fallback
+            const staleRes = await pool.query('SELECT recommendations, last_updated FROM user_ai_cache WHERE user_id = $1', [userId]);
+            if (staleRes.rows.length > 0) {
+                console.log(`[Browse] AI: Serving stale cache for User ${userId}`);
+                return res.json({
+                    recommendations: staleRes.rows[0].recommendations,
+                    cached_at: staleRes.rows[0].last_updated,
+                    is_stale: true
+                });
+            }
+
+            // Tier 4: Global Popular Fallback
+            console.log(`[Browse] AI: Serving global popular fallback for User ${userId}`);
+            const recommendations = await getPopularFallback();
+            return res.json({ recommendations, cached_at: new Date(), is_fallback: true });
+        }
 
     } catch (error) {
-        if (error.name === 'AbortError') {
-            console.error('[Browse] AI: Gemini request timed out after 45s');
-            return res.status(504).json({ error: 'AI generation timed out. Please try again.' });
-        }
         console.error('[Browse] AI Critical Route Error:', error);
-        res.status(500).json({ error: 'Internal Discovery Engine Error', details: error.message });
+        res.status(500).json({ error: 'Internal Discovery Engine Error' });
     }
 });
 
@@ -2848,6 +2837,70 @@ app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
 });
 
 // GET Movie Cast (Local + TMDB fallback)
+app.get('/api/series/:id/season/:season_number/episodes', async (req, res) => {
+    const { id, season_number } = req.params;
+    try {
+        // 1. Check local DB (series_id is the TMDB ID of the series from 'serieses' table)
+        const localEpisodes = await pool.query(
+            `SELECT episode_id, series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count
+             FROM episodes 
+             WHERE series_id = $1 AND season_number = $2
+             ORDER BY episode_number ASC`,
+            [id, season_number]
+        );
+
+        if (localEpisodes.rows.length > 0) {
+            console.log(`[Episodes] Serving ${localEpisodes.rows.length} local episodes for Series ${id} S${season_number}`);
+            return res.json(localEpisodes.rows);
+        }
+
+        // 2. Fallback to TMDB
+        console.log(`[Episodes] Fetching episodes from TMDB for Series ${id} S${season_number}`);
+        const TMDB_API_KEY = process.env.TMDB_API_KEY || 'ffb76769eee5be098b949fd3877a9d0b';
+        const tmdbRes = await fetch(`https://api.themoviedb.org/3/tv/${id}/season/${season_number}?api_key=${TMDB_API_KEY}`);
+        
+        if (tmdbRes.ok) {
+            const data = await tmdbRes.json();
+            const episodes = data.episodes || [];
+            
+            // 3. Transform and Save (Upsert) to Local DB
+            const savedEpisodes = [];
+            for (const ep of episodes) {
+                try {
+                    const result = await pool.query(
+                        `INSERT INTO episodes (series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count)
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                         ON CONFLICT (series_id, season_number, episode_number) DO UPDATE 
+                         SET name = EXCLUDED.name, overview = EXCLUDED.overview, still_path = EXCLUDED.still_path, 
+                             vote_average = EXCLUDED.vote_average, vote_count = EXCLUDED.vote_count
+                         RETURNING *`,
+                        [
+                            id, 
+                            season_number, 
+                            ep.episode_number, 
+                            ep.name, 
+                            ep.overview, 
+                            ep.air_date || null, 
+                            ep.still_path, 
+                            ep.vote_average, 
+                            ep.vote_count
+                        ]
+                    );
+                    savedEpisodes.push(result.rows[0]);
+                } catch (insertErr) {
+                    console.error('[Episodes] Insert error (skipping):', insertErr.message);
+                }
+            }
+            return res.json(savedEpisodes.length > 0 ? savedEpisodes : episodes);
+        }
+
+        res.json([]);
+    } catch (error) {
+        console.error('[Episodes] Error:', error.message);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.get('/api/movies/:id/cast', async (req, res) => {
     const movieId = req.params.id;
     try {

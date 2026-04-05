@@ -34,7 +34,9 @@ const SeriesDetails = ({ user }) => {
   const [series, setSeries] = useState(null);
   const [seasons, setSeasons] = useState([]);
   const [selectedSeason, setSelectedSeason] = useState(null);
+  const [episodes, setEpisodes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingEpisodes, setLoadingEpisodes] = useState(false);
 
   // User interaction state
   const [inWatchlist, setInWatchlist] = useState(false);
@@ -135,6 +137,18 @@ const SeriesDetails = ({ user }) => {
     } catch (err) { /* API may not exist yet */ }
   }, [id]);
 
+  const fetchEpisodes = useCallback(async (seasonNum) => {
+    setLoadingEpisodes(true);
+    try {
+      const res = await fetch(`${API_BASE}/series/${id}/season/${seasonNum}/episodes`);
+      if (res.ok) {
+        const data = await res.json();
+        setEpisodes(data);
+      }
+    } catch (err) { console.error('Episodes fetch error:', err); }
+    setLoadingEpisodes(false);
+  }, [id]);
+
   // Fetch related series
   const fetchRelated = useCallback(async () => {
     if (!series) return;
@@ -165,6 +179,12 @@ const SeriesDetails = ({ user }) => {
       fetchComments();
     }
   }, [id, fetchRating, fetchStatus, fetchComments]);
+
+  useEffect(() => {
+    if (selectedSeason) {
+      fetchEpisodes(selectedSeason.season_number);
+    }
+  }, [selectedSeason, fetchEpisodes]);
 
   useEffect(() => {
     if (series) fetchRelated();
@@ -520,6 +540,44 @@ const SeriesDetails = ({ user }) => {
                     </p>
                   )}
                 </div>
+              </div>
+            )}
+
+            {/* Episode List */}
+            {selectedSeason && (
+              <div className="sd-episodes-section">
+                <h3 className="sd-episodes-title">🎬 Episodes</h3>
+                {loadingEpisodes ? (
+                  <div className="sd-episodes-loading">
+                    <div className="mini-spinner"></div>
+                    <span>Fetching episodes...</span>
+                  </div>
+                ) : episodes.length > 0 ? (
+                  <div className="sd-episodes-list">
+                    {episodes.map(ep => (
+                      <div key={ep.episode_id || ep.episode_number} className="sd-episode-item">
+                        <div className="sd-episode-still">
+                          {ep.still_path ? (
+                            <img src={`https://image.tmdb.org/t/p/w300${ep.still_path}`} alt={ep.name} />
+                          ) : (
+                            <div className="sd-episode-no-still">🎬</div>
+                          )}
+                          <div className="sd-episode-number">E{ep.episode_number}</div>
+                        </div>
+                        <div className="sd-episode-info">
+                          <div className="sd-episode-header">
+                            <h4 className="sd-episode-name">{ep.name}</h4>
+                            <span className="sd-episode-rating">⭐ {ep.vote_average ? Number(ep.vote_average).toFixed(1) : 'N/A'}</span>
+                          </div>
+                          <div className="sd-episode-airdate">{ep.air_date || 'Unknown Date'}</div>
+                          <p className="sd-episode-overview">{ep.overview || 'No overview available for this episode.'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="sd-no-episodes">No episodes found for this season.</div>
+                )}
               </div>
             )}
 

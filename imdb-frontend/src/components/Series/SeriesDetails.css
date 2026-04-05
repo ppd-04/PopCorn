@@ -601,6 +601,153 @@
   object-fit: cover;
 }
 
+/* ========== EPISODES SECTION ========== */
+.sd-episodes-section {
+  margin-top: 40px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 16px;
+  padding: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sd-episodes-title {
+  font-size: 1.8rem;
+  margin-bottom: 25px;
+  color: #ff9d00;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sd-episodes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.sd-episode-item {
+  display: flex;
+  gap: 20px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 15px;
+  border-radius: 12px;
+  transition: transform 0.3s ease, background 0.3s ease;
+  cursor: default;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sd-episode-item:hover {
+  transform: translateX(5px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.sd-episode-still {
+  position: relative;
+  width: 220px;
+  height: 124px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.sd-episode-still img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sd-episode-no-still {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  color: #444;
+}
+
+.sd-episode-number {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.sd-episode-info {
+  flex-grow: 1;
+}
+
+.sd-episode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 5px;
+}
+
+.sd-episode-name {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #fff;
+  margin: 0;
+}
+
+.sd-episode-rating {
+  color: #ffc107;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.sd-episode-airdate {
+  font-size: 0.85rem;
+  color: #aaa;
+  margin-bottom: 10px;
+}
+
+.sd-episode-overview {
+  font-size: 0.95rem;
+  color: #ccc;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sd-episodes-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px;
+  gap: 15px;
+  color: #aaa;
+}
+
+.sd-no-episodes {
+  text-align: center;
+  padding: 40px;
+  color: #777;
+  font-style: italic;
+}
+
+@media (max-width: 768px) {
+  .sd-episode-item {
+    flex-direction: column;
+  }
+  .sd-episode-still {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+}
+
 .sd-comment-input-wrap {
   flex: 1;
   display: flex;
