@@ -570,90 +570,82 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
         const forceRefresh = req.query.force === 'true';
 
         if (!userId) {
-            // guest er jonno emni random 
-            const guestRes = await pool.query('select * from movies where vote_average >= 8.2 order by random() limit 10');
+            // Guest experience: top movies
+            const guestRes = await pool.query('SELECT * FROM movies WHERE vote_average >= 8.2 ORDER BY random() LIMIT 10');
             return res.json({
-                recommendations: guestRes.rows.map(m => ({ ...m, ai_note: "Discover top-rated classics" })),
+                recommendations: guestRes.rows.map(m => ({ ...m, ai_note: "Discover a top-rated cinematic masterpiece." })),
                 cached_at: new Date()
             });
         }
 
-        // Tier 1: Check Cache (only if not forcing refresh)
-        if (!forceRefresh) {
-            const cacheRes = await pool.query(
-                `select recommendations, last_updated from user_ai_cache 
-                 where user_id = $1 and last_updated > (now() - interval '4 hours')`,
-                [userId]
-            );
-            if (cacheRes.rows.length > 0) {
+        // Tier 1: Check Cache (if not forcing refresh)
+        const currentCache = await pool.query('SELECT recommendations, last_updated FROM user_ai_cache WHERE user_id = $1', [userId]);
+        const existingRecs = currentCache.rows.length > 0 ? currentCache.rows[0].recommendations : [];
+
+        if (!forceRefresh && currentCache.rows.length > 0) {
+            const lastUpdated = new Date(currentCache.rows[0].last_updated);
+            const fourHoursAgo = new Date(Date.now() - 4 * 60 * 60 * 1000);
+            if (lastUpdated > fourHoursAgo) {
                 console.log(`[Browse] AI: Returning fresh cache for User ${userId}`);
-                return res.json({
-                    recommendations: cacheRes.rows[0].recommendations,
-                    cached_at: cacheRes.rows[0].last_updated
-                });
+                return res.json({ recommendations: existingRecs, cached_at: lastUpdated });
             }
         }
 
-        // Tier 2: Try Gemini Generation
-        console.log(`[Browse] AI: Generating new picks for User ${userId} (force=${forceRefresh})`);
-        
-        // Helper for popular fallback
-        const getPopularFallback = async () => {
-            const popRes = await pool.query(`
-                SELECT id, title, poster_path, backdrop_path, vote_average 
-                FROM movies 
-                WHERE vote_average >= 7.5 
-                ORDER BY random() 
-                LIMIT 10
-            `);
-            return popRes.rows.map(m => ({
-                ...m,
-                ai_note: "Highly recommended trending masterpiece selected for you."
-            }));
-        };
+        // Tier 2: Generate New Picks (Priority logic)
+        console.log(`[Browse] AI: Generating refined picks for User ${userId} (force=${forceRefresh})`);
+        const avoidTitles = existingRecs.map(r => r.title).join(', ');
+
+        const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
+            pool.query('SELECT g.name FROM user_interests ui JOIN genres g ON ui.genre_id = g.id WHERE ui.user_id = $1', [userId]),
+            pool.query('SELECT m.title, uf.created_at FROM user_favourites uf JOIN movies m ON uf.movie_id = m.id WHERE uf.user_id = $1 ORDER BY uf.created_at DESC LIMIT 5', [userId]),
+            pool.query('SELECT m.title, w.created_at FROM wishlist w JOIN movies m ON w.movie_id = m.id WHERE w.user_id = $1 ORDER BY w.created_at DESC LIMIT 5', [userId]),
+            pool.query('SELECT m.title, r.rating, r.created_at FROM movie_ratings r JOIN movies m ON r.movie_id = m.id WHERE r.user_id = $1 ORDER BY r.created_at DESC LIMIT 10', [userId]),
+            pool.query('SELECT m.title, c.content, c.created_at FROM movie_comments c JOIN movies m ON c.movie_id = m.id WHERE c.user_id = $1 ORDER BY c.created_at DESC LIMIT 5', [userId]),
+            pool.query('SELECT content, created_at FROM social_posts WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5', [userId]),
+            pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10', [userId])
+        ]);
+
+        const timelineStrings = [
+            `Interests: ${genres.rows.map(g => g.name).join(', ') || 'Unknown'}`,
+            ...favs.rows.map(f => `[Fav] ${f.title}`),
+            ...wishlist.rows.map(w => `[Watchlist] ${w.title}`),
+            ...ratings.rows.map(r => `[Rated] ${r.title} ${r.rating}/10`),
+            ...comments.rows.map(c => `[Commented] ${c.title}: ${c.content}`),
+            ...chats.rows.reverse().map(ch => `[MOST RECENT CHAT] ${ch.role.toUpperCase()}: ${ch.content}`)
+        ];
 
         try {
-            // Collecting user timeline/context
-            const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
-                pool.query('select g.name from user_interests ui join genres g on ui.genre_id = g.id where ui.user_id = $1', [userId]),
-                pool.query('select m.title, uf.created_at from user_favourites uf join movies m on uf.movie_id = m.id where uf.user_id = $1 order by uf.created_at desc limit 5', [userId]),
-                pool.query('select m.title, w.created_at from wishlist w join movies m on w.movie_id = m.id where w.user_id = $1 order by w.created_at desc limit 5', [userId]),
-                pool.query('select m.title, r.rating, r.created_at from movie_ratings r join movies m on r.movie_id = m.id where r.user_id = $1 order by r.created_at desc limit 10', [userId]),
-                pool.query('select m.title, c.content, c.created_at from movie_comments c join movies m on c.movie_id = m.id where c.user_id = $1 order by c.created_at desc limit 5', [userId]),
-                pool.query('select content, created_at from social_posts where user_id = $1 order by created_at desc limit 5', [userId]),
-                pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 15', [userId])
-            ]);
+            const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+            const systemPrompt = `You are a personalized movie recommendation assistant. 
+PRIORITY NO 1: Recent Chat Messages. 
+If a user mentions a topic (e.g. "sharks", "space", "romance"), recommend 2-3 relevant movies immediately.
+AI NOTES: Must be immersive and conversational. 
+Use phrases like: 
+- "Because you recently watchlisted..."
+- "Since you mentioned X in our chat..."
+- "Since you are a fan of [topic]..."
+STRICT RULES:
+- NO markdown (no **, no *). Just clean text.
+- MAXIMUM 10 recommendations.
+- AVOID these titles already recommended: [${avoidTitles}]
+FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE%' LIMIT 1 | Personalized Immersive Note`;
 
-            const timelineStrings = [
-                `Interests/Favorite Genres: ${genres.rows.map(g => g.name).join(', ') || 'Unknown'}`,
-                ...favs.rows.map(f => `[Favorite] Added ${f.title} at ${f.created_at}`),
-                ...wishlist.rows.map(w => `[Watchlist] Added ${w.title} at ${w.created_at}`),
-                ...ratings.rows.map(r => `[Rating] Rated ${r.title} as ${r.rating}/10 at ${r.created_at}`),
-                ...comments.rows.map(c => `[Comment] On ${c.title}: "${c.content}" at ${c.created_at}`),
-                ...posts.rows.map(p => `[Social Post] "${p.content}" at ${p.created_at}`),
-                ...chats.rows.reverse().map(ch => `[Chat Log] ${ch.role.toUpperCase()}: "${ch.content}" at ${ch.created_at}`)
-            ];
-
-            const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
-            const systemPrompt = `Analyze USER TIMELINE and pick 10 movies. Recent activity is priority. Diversify. BOLD contexto-aware message (max 20 words). FORMAT: #AI_REC: [SQL_QUERY] | [MESSAGE]. QUERY: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%NAME%' LIMIT 1`;
-
-            const aiController = new AbortController();
-            const aiTimeout = setTimeout(() => aiController.abort(), 15000); // 15s timeout for persistence
-
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }]
-                }),
-                signal: aiController.signal
+                    contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\nUSER TIMELINE (Recent Chat is priority):\n${timelineStrings.join('\n')}` }] }]
+                })
             });
-            clearTimeout(aiTimeout);
 
-            if (!aiRes.ok) throw new Error('Gemini API Error');
+            if (!aiRes.ok) {
+                const errBody = await aiRes.text();
+                console.error(`[Browse] Gemini API Error (${aiRes.status}):`, errBody);
+                throw new Error(`Gemini API Error: ${aiRes.status}`);
+            }
 
-            const aiData = await aiRes.json();
-            const aiText = aiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+            const data = await aiRes.json();
+            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
             const recMatches = aiText.split('#AI_REC:').slice(1);
             const recommendations = [];
 
@@ -661,48 +653,36 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
                 const [queryPart, notePart] = block.split('|');
                 if (!queryPart || !notePart) continue;
                 try {
-                    const movieRes = await pool.query(queryPart.trim());
-                    if (movieRes.rows.length > 0) {
-                        recommendations.push({ ...movieRes.rows[0], ai_note: notePart.trim() });
+                    const row = await pool.query(queryPart.trim());
+                    if (row.rows.length > 0) {
+                        recommendations.push({ ...row.rows[0], ai_note: notePart.trim().replace(/\*/g, '') });
                     }
-                } catch (e) { /* skip bad query */ }
+                } catch (e) { /* skip bad quote */ }
             }
 
             if (recommendations.length > 0) {
                 await pool.query(
-                    `insert into user_ai_cache (user_id, recommendations, last_updated)
-                     values ($1, $2, now())
-                     on conflict (user_id) do update set recommendations = excluded.recommendations, last_updated = now()`,
+                    `INSERT INTO user_ai_cache (user_id, recommendations, last_updated)
+                     VALUES ($1, $2, now())
+                     ON CONFLICT (user_id) DO UPDATE SET recommendations = EXCLUDED.recommendations, last_updated = now()`,
                     [userId, JSON.stringify(recommendations)]
                 );
                 return res.json({ recommendations, cached_at: new Date() });
             } else {
-                throw new Error('No recommendations generated');
+                throw new Error('No valid recommendations found');
             }
-
         } catch (genError) {
-            console.error(`[Browse] AI: Generation failed for User ${userId}, using fallback. ERROR:`, genError.message);
+            console.error(`[Browse] AI: Gen failed for ${userId}, using fallback.`, genError.message);
+            // Fallback to stale cache if it exists, otherwise popular
+            if (existingRecs.length > 0) return res.json({ recommendations: existingRecs, cached_at: new Date(), is_stale: true });
             
-            // Tier 3: Stale Cache Fallback
-            const staleRes = await pool.query('SELECT recommendations, last_updated FROM user_ai_cache WHERE user_id = $1', [userId]);
-            if (staleRes.rows.length > 0) {
-                console.log(`[Browse] AI: Serving stale cache for User ${userId}`);
-                return res.json({
-                    recommendations: staleRes.rows[0].recommendations,
-                    cached_at: staleRes.rows[0].last_updated,
-                    is_stale: true
-                });
-            }
-
-            // Tier 4: Global Popular Fallback
-            console.log(`[Browse] AI: Serving global popular fallback for User ${userId}`);
-            const recommendations = await getPopularFallback();
-            return res.json({ recommendations, cached_at: new Date(), is_fallback: true });
+            const popRes = await pool.query('SELECT * FROM movies WHERE vote_average >= 7.8 ORDER BY random() LIMIT 10');
+            return res.json({ recommendations: popRes.rows.map(m => ({ ...m, ai_note: "A popular choice that matches your profile." })), cached_at: new Date(), is_fallback: true });
         }
 
     } catch (error) {
-        console.error('[Browse] AI Critical Route Error:', error);
-        res.status(500).json({ error: 'Internal Discovery Engine Error' });
+        console.error('[Browse] AI Error:', error);
+        res.status(500).json({ error: 'Deep Discovery Engine currently recalibrating.' });
     }
 });
 
