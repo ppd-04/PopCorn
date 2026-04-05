@@ -630,7 +630,7 @@ STRICT RULES:
 - AVOID these titles already recommended: [${avoidTitles}]
 FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE%' LIMIT 1 | Personalized Immersive Note`;
 
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
