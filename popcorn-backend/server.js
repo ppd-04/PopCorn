@@ -46,7 +46,7 @@ const pool = new Pool({
     connectionTimeoutMillis: 10000,
 });
 // tasting er jonno
-pool.query('SELECT NOW()', (err, res) => {
+pool.query('select now()', (err, res) => {
     if (err) {
         console.error('Γ¥î Database connection error:', err.stack);
     } else {
@@ -54,9 +54,7 @@ pool.query('SELECT NOW()', (err, res) => {
     }
 });
 
-// ==========================================
-// MIDDLEWARE DEFINITIONS
-// ==========================================
+//middleware
 const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -70,7 +68,7 @@ const authenticateToken = (req, res, next) => {
     });
 };
 
-// New middleware for optional authentication (for browse failsafes)
+// middleaware bujhi nai
 const optionalAuthenticate = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1];
@@ -96,7 +94,7 @@ const optionalAuthenticate = (req, res, next) => {
 const authenticateAdmin = (req, res, next) => {
     authenticateToken(req, res, async () => {
         try {
-            const u = await pool.query('SELECT is_admin, is_super_admin FROM users WHERE user_id = $1', [req.user.userId]);
+            const u = await pool.query('select is_admin, is_super_admin from users where user_id = $1', [req.user.userId]);
             if (u.rows.length === 0 || !u.rows[0].is_admin) {
                 return res.status(403).json({ error: 'Access denied. Administrator privileges required.' });
             }
@@ -158,8 +156,7 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
 
         let suggestedMovies = [];
 
-        // --- SAFE QUERY ENFORCEMENT ---
-        // NEW format: #GeminiMovies: movie1, movie2, movie3
+        //je gemini ta noob o vulval query kore tai jor kore query koracchi
         const movieRegex = /#GeminiMovies:\s*([\s\S]+?)(?:\r?\n|$)/i;
         const movieMatch = text.match(movieRegex);
         if (movieMatch) {
@@ -195,13 +192,13 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
                 const lastUserMessage = messages[messages.length - 1];
                 if (lastUserMessage && lastUserMessage.role === 'user') {
                     await pool.query(
-                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
                         [uId, 'user', lastUserMessage.content]//user hole user role e rakhe
                     );
                 }
                 if (text) {
                     await pool.query(
-                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
                         [uId, 'model', text]//otherwise model
                     );
                 }
@@ -227,7 +224,7 @@ const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 app.post('/api/send-otp', async (req, res) => {
     const { email, password, full_name, date_of_birth, phone_number, gender } = req.body;
-    
+
     try {
         if (!email || !password) throw new Error('Email and password are required');
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -235,16 +232,16 @@ app.post('/api/send-otp', async (req, res) => {
         if (password.length < 6) throw new Error('Password must be at least 6 characters long');
         if (!full_name || full_name.trim().length < 2) throw new Error('Full name is required (at least 2 characters)');
 
-        const userCheck = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const userCheck = await pool.query('select * from users where email = $1', [email]);
         if (userCheck.rows.length > 0) throw new Error('User already exists');
 
         const otp = generateOTP();
         const expiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
 
         await pool.query(
-            `INSERT INTO email_otps (email, otp_code, expires_at) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (email) DO UPDATE SET otp_code = EXCLUDED.otp_code, expires_at = EXCLUDED.expires_at`,
+            `insert into email_otps (email, otp_code, expires_at) 
+             values ($1, $2, $3) 
+             on conflict (email) DO update set otp_code = excluded.otp_code, expires_at = excluded.expires_at`,
             [email, otp, expiresAt]
         );
 
@@ -273,47 +270,47 @@ app.post('/api/send-otp', async (req, res) => {
 
 app.post('/api/register', async (req, res) => {
     const { email, password, full_name, date_of_birth, gender, phone_number, address, profile_picture, otp_code } = req.body;
-    
+
     const client = await pool.connect();
-    
+
     try {
         if (!email || !otp_code) throw new Error('Email and OTP code are required');
-        
-        await client.query('BEGIN');
+
+        await client.query('begin');
 
         // Check OTP
-        const otpCheck = await client.query('SELECT * FROM email_otps WHERE email = $1 AND otp_code = $2', [email, otp_code]);
+        const otpCheck = await client.query('select * from email_otps where email = $1 and otp_code = $2', [email, otp_code]);
         if (otpCheck.rows.length === 0) throw new Error('Invalid or expired OTP');
-        
+
         if (new Date() > new Date(otpCheck.rows[0].expires_at)) {
-            await client.query('DELETE FROM email_otps WHERE email = $1', [email]);
+            await client.query('delete from email_otps where email = $1', [email]);
             throw new Error('OTP has expired, please request a new one');
         }
 
-        const userCheck = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        const userCheck = await client.query('select * from users where email = $1', [email]);
         if (userCheck.rows.length > 0) throw new Error('User already exists');
 
         const koybarHashingHobe = 10;
         const passwordHash = await bcrypt.hash(password, koybarHashingHobe);
 
         const userEmail = email.split('@')[0];
-        const insertQuery = `INSERT INTO users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_verified) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-            RETURNING user_id, email, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_admin`;
+        const insertQuery = `insert into users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_verified) 
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
+            returning user_id, email, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_admin`;
         const newUser = await client.query(insertQuery, [
             email, passwordHash, userEmail,
             full_name ? full_name.trim() : null,
             date_of_birth || null, gender || null,
             phone_number ? phone_number.trim() : null,
             address ? address.trim() : null,
-            profile_picture || null, true // Automatically verified
+            profile_picture || null, true //  verified
         ]);
 
-        await client.query('DELETE FROM email_otps WHERE email = $1', [email]);
-        
-        await client.query('COMMIT');
+        await client.query('delete from email_otps where email = $1', [email]);
 
-        // Automatically log them in by returning a token
+        await client.query('commit');
+
+        // Automatically login
         const token = jwt.sign(
             { userId: newUser.rows[0].user_id, email: newUser.rows[0].email, isAdmin: newUser.rows[0].is_admin },
             process.env.JWT_SECRET,
@@ -327,7 +324,7 @@ app.post('/api/register', async (req, res) => {
         });
 
     } catch (error) {
-        await client.query('ROLLBACK');
+        await client.query('rollback');
         console.error(error);
         res.status(400).json({ error: error.message || 'Verification failed' });
     } finally {
@@ -340,7 +337,7 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+        const result = await pool.query('select * from users where email = $1', [email]);
         if (result.rows.length === 0) {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
@@ -396,7 +393,7 @@ app.get('/api/verify-email', async (req, res) => {
 
     try {
         const result = await pool.query(
-            'SELECT user_id, email, is_verified FROM users WHERE verification_token = $1',
+            'select user_id, email, is_verified from users where verification_token = $1',
             [token]
         );
 
@@ -411,7 +408,7 @@ app.get('/api/verify-email', async (req, res) => {
         }
 
         await pool.query(
-            'UPDATE users SET is_verified = true, verification_token = NULL WHERE user_id = $1',
+            'update users set is_verified = true, verification_token = NULL where user_id = $1',
             [user.user_id]
         );
 
@@ -433,7 +430,7 @@ app.post('/api/resend-verification', async (req, res) => {
 
     try {
         const result = await pool.query(
-            'SELECT user_id, username, full_name, is_verified, verification_token FROM users WHERE email = $1',
+            'select user_id, username, full_name, is_verified, verification_token from users where email = $1',
             [email]
         );
 
@@ -447,11 +444,11 @@ app.post('/api/resend-verification', async (req, res) => {
             return res.json({ message: 'Email is already verified. You can log in.' });
         }
 
-        // Generate new token if needed
+        // new tken banano
         let token = user.verification_token;
         if (!token) {
             token = crypto.randomBytes(32).toString('hex');
-            await pool.query('UPDATE users SET verification_token = $1 WHERE user_id = $2', [token, user.user_id]);
+            await pool.query('update users set verification_token = $1 where user_id = $2', [token, user.user_id]);
         }
 
         const verifyUrl = `${FRONTEND_URL}/verify?token=${token}`;
@@ -571,7 +568,7 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
 
         if (!userId) {
             // Guest experience: top movies
-            const guestRes = await pool.query('SELECT * FROM movies WHERE vote_average >= 8.2 ORDER BY random() LIMIT 10');
+            const guestRes = await pool.query('select * from movies where vote_average >= 8.2 order by random() limit 10');
             return res.json({
                 recommendations: guestRes.rows.map(m => ({ ...m, ai_note: "Discover a top-rated cinematic masterpiece." })),
                 cached_at: new Date()
@@ -579,7 +576,7 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
         }
 
         // Tier 1: Check Cache (if not forcing refresh)
-        const currentCache = await pool.query('SELECT recommendations, last_updated FROM user_ai_cache WHERE user_id = $1', [userId]);
+        const currentCache = await pool.query('select recommendations, last_updated from user_ai_cache where user_id = $1', [userId]);
         const existingRecs = currentCache.rows.length > 0 ? currentCache.rows[0].recommendations : [];
 
         if (!forceRefresh && currentCache.rows.length > 0) {
@@ -596,13 +593,13 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
         const avoidTitles = existingRecs.map(r => r.title).join(', ');
 
         const [genres, favs, wishlist, ratings, comments, posts, chats] = await Promise.all([
-            pool.query('SELECT g.name FROM user_interests ui JOIN genres g ON ui.genre_id = g.id WHERE ui.user_id = $1', [userId]),
-            pool.query('SELECT m.title, uf.created_at FROM user_favourites uf JOIN movies m ON uf.movie_id = m.id WHERE uf.user_id = $1 ORDER BY uf.created_at DESC LIMIT 5', [userId]),
-            pool.query('SELECT m.title, w.created_at FROM wishlist w JOIN movies m ON w.movie_id = m.id WHERE w.user_id = $1 ORDER BY w.created_at DESC LIMIT 5', [userId]),
-            pool.query('SELECT m.title, r.rating, r.created_at FROM movie_ratings r JOIN movies m ON r.movie_id = m.id WHERE r.user_id = $1 ORDER BY r.created_at DESC LIMIT 10', [userId]),
-            pool.query('SELECT m.title, c.content, c.created_at FROM movie_comments c JOIN movies m ON c.movie_id = m.id WHERE c.user_id = $1 ORDER BY c.created_at DESC LIMIT 5', [userId]),
-            pool.query('SELECT content, created_at FROM social_posts WHERE user_id = $1 ORDER BY created_at DESC LIMIT 5', [userId]),
-            pool.query('SELECT role, content, created_at FROM user_chat_messages WHERE user_id = $1 ORDER BY created_at DESC LIMIT 10', [userId])
+            pool.query('select g.name from user_interests ui join genres g on ui.genre_id = g.id where ui.user_id = $1', [userId]),
+            pool.query('select m.title, uf.created_at from user_favourites uf join movies m on uf.movie_id = m.id where uf.user_id = $1 order by uf.created_at desc limit 5', [userId]),
+            pool.query('select m.title, w.created_at from wishlist w join movies m on w.movie_id = m.id where w.user_id = $1 order by w.created_at desc limit 5', [userId]),
+            pool.query('select m.title, r.rating, r.created_at from movie_ratings r join movies m on r.movie_id = m.id where r.user_id = $1 order by r.created_at desc limit 10', [userId]),
+            pool.query('select m.title, c.content, c.created_at from movie_comments c join movies m on c.movie_id = m.id where c.user_id = $1 order by c.created_at desc limit 5', [userId]),
+            pool.query('select content, created_at from social_posts where user_id = $1 order by created_at desc limit 5', [userId]),
+            pool.query('select role, content, created_at from user_chat_messages where user_id = $1 order by created_at desc limit 10', [userId])
         ]);
 
         const timelineStrings = [
@@ -628,8 +625,9 @@ STRICT RULES:
 - NO markdown (no **, no *). Just clean text.
 - MAXIMUM 10 recommendations.
 - AVOID these titles already recommended: [${avoidTitles}]
-FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE%' LIMIT 1 | Personalized Immersive Note`;
+FORMAT: #AI_REC: select id, title, poster_path, backdrop_path, vote_average from movies where title ilike '%MOVIE%' limit 1 | Personalized Immersive Note`;
 
+            //const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { //eta pro sir er jonno special
             const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -657,14 +655,14 @@ FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM
                     if (row.rows.length > 0) {
                         recommendations.push({ ...row.rows[0], ai_note: notePart.trim().replace(/\*/g, '') });
                     }
-                } catch (e) { /* skip bad quote */ }
+                } catch (e) { /* skip bad*/ }
             }
 
             if (recommendations.length > 0) {
                 await pool.query(
-                    `INSERT INTO user_ai_cache (user_id, recommendations, last_updated)
-                     VALUES ($1, $2, now())
-                     ON CONFLICT (user_id) DO UPDATE SET recommendations = EXCLUDED.recommendations, last_updated = now()`,
+                    `insert into user_ai_cache (user_id, recommendations, last_updated)
+                     values ($1, $2, now())
+                     on conflict (user_id) DO update set recommendations = excluded.recommendations, last_updated = now()`,
                     [userId, JSON.stringify(recommendations)]
                 );
                 return res.json({ recommendations, cached_at: new Date() });
@@ -673,10 +671,9 @@ FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM
             }
         } catch (genError) {
             console.error(`[Browse] AI: Gen failed for ${userId}, using fallback.`, genError.message);
-            // Fallback to stale cache if it exists, otherwise popular
             if (existingRecs.length > 0) return res.json({ recommendations: existingRecs, cached_at: new Date(), is_stale: true });
-            
-            const popRes = await pool.query('SELECT * FROM movies WHERE vote_average >= 7.8 ORDER BY random() LIMIT 10');
+
+            const popRes = await pool.query('select * from movies where vote_average >= 7.8 order by random() limit 10');
             return res.json({ recommendations: popRes.rows.map(m => ({ ...m, ai_note: "A popular choice that matches your profile." })), cached_at: new Date(), is_fallback: true });
         }
 
@@ -686,9 +683,7 @@ FORMAT: #AI_REC: SELECT id, title, poster_path, backdrop_path, vote_average FROM
     }
 });
 
-// ==========================================
-// SOCIAL FEATURE ROUTES
-// ==========================================
+//social
 
 // post tost ashe
 app.get('/api/posts', async (req, res) => {
@@ -705,22 +700,22 @@ app.get('/api/posts', async (req, res) => {
         }
 
         const query = `
-            SELECT 
+            select 
                 sp.post_id, sp.content, sp.image, sp.created_at, sp.updated_at, sp.user_id,
                 u.username, u.full_name, u.profile_picture,
-                COALESCE(lc.like_count, 0)::int AS like_count,
-                COALESCE(cc.comment_count, 0)::int AS comment_count,
-                CASE WHEN ul.user_id IS NOT NULL THEN true ELSE false END AS liked_by_me
-            FROM social_posts sp
-            JOIN users u ON sp.user_id = u.user_id
-            LEFT JOIN (
-                SELECT post_id, COUNT(*) AS like_count FROM post_likes GROUP BY post_id
-            ) lc ON sp.post_id = lc.post_id
-            LEFT JOIN (
-                SELECT post_id, COUNT(*) AS comment_count FROM post_comments GROUP BY post_id
-            ) cc ON sp.post_id = cc.post_id
-            LEFT JOIN post_likes ul ON sp.post_id = ul.post_id AND ul.user_id = $1
-            ORDER BY sp.created_at DESC
+                coalesce(lc.like_count, 0)::int as like_count,
+                coalesce(cc.comment_count, 0)::int as comment_count,
+                case when ul.user_id is not null then true else false end as liked_by_me
+            from social_posts sp
+            join users u on sp.user_id = u.user_id
+            left join (
+                select post_id, count(*) as like_count from post_likes group by post_id
+            ) lc on sp.post_id = lc.post_id
+            left join (
+                select post_id, count(*) as comment_count from post_comments group by post_id
+            ) cc on sp.post_id = cc.post_id
+            left join post_likes ul on sp.post_id = ul.post_id and ul.user_id = $1
+            order by sp.created_at desc
         `;
         const result = await pool.query(query, [currentUserId]);
         res.json(result.rows);
@@ -741,19 +736,19 @@ app.post('/api/posts', authenticateToken, async (req, res) => {
         }
 
         const query = `
-            INSERT INTO social_posts (user_id, content, image)
-            VALUES ($1, $2, $3)
-            RETURNING *
+            insert into social_posts (user_id, content, image)
+            values ($1, $2, $3)
+            returning *
         `;
         const result = await pool.query(query, [userId, content.trim(), image || null]);
 
 
         const fullPost = await pool.query(`
-            SELECT sp.*, u.username, u.full_name, u.profile_picture,
-                   0 AS like_count, 0 AS comment_count, false AS liked_by_me
-            FROM social_posts sp
-            JOIN users u ON sp.user_id = u.user_id
-            WHERE sp.post_id = $1
+            select sp.*, u.username, u.full_name, u.profile_picture,
+                   0 as like_count, 0 as comment_count, false as liked_by_me
+            from social_posts sp
+            join users u on sp.user_id = u.user_id
+            where sp.post_id = $1
         `, [result.rows[0].post_id]);
 
         res.status(201).json(fullPost.rows[0]);
@@ -771,7 +766,7 @@ app.put('/api/posts/:id', authenticateToken, async (req, res) => {
 
     try {
 
-        const ownerCheck = await pool.query('SELECT user_id FROM social_posts WHERE post_id = $1', [postId]);
+        const ownerCheck = await pool.query('select user_id from social_posts where post_id = $1', [postId]);
         if (ownerCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Post not found' });
         }
@@ -784,10 +779,10 @@ app.put('/api/posts/:id', authenticateToken, async (req, res) => {
         }
 
         const query = `
-            UPDATE social_posts 
-            SET content = $1, image = $2, updated_at = NOW()
-            WHERE post_id = $3
-            RETURNING *
+            update social_posts 
+            set content = $1, image = $2, updated_at = now()
+            where post_id = $3
+            returning *
         `;
         const result = await pool.query(query, [content.trim(), image !== undefined ? image : null, postId]);
         res.json(result.rows[0]);
@@ -803,7 +798,7 @@ app.delete('/api/posts/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const ownerCheck = await pool.query('SELECT user_id FROM social_posts WHERE post_id = $1', [postId]);
+        const ownerCheck = await pool.query('select user_id from social_posts where post_id = $1', [postId]);
         if (ownerCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Post painai' });
         }
@@ -811,7 +806,7 @@ app.delete('/api/posts/:id', authenticateToken, async (req, res) => {
             return res.status(403).json({ error: 'You can only delete your own posts' });
         }
 
-        await pool.query('DELETE FROM social_posts WHERE post_id = $1', [postId]);
+        await pool.query('delete from social_posts where post_id = $1', [postId]);
         res.json({ message: 'Post deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -827,19 +822,19 @@ app.post('/api/posts/:id/like', authenticateToken, async (req, res) => {
     try {
 
         const existing = await pool.query(
-            'SELECT * FROM post_likes WHERE post_id = $1 AND user_id = $2',
+            'select * from post_likes where post_id = $1 and user_id = $2',
             [postId, userId]
         );
 
         if (existing.rows.length > 0) {
 
-            await pool.query('DELETE FROM post_likes WHERE post_id = $1 AND user_id = $2', [postId, userId]);
-            const countResult = await pool.query('SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1', [postId]);
+            await pool.query('delete from post_likes where post_id = $1 and user_id = $2', [postId, userId]);
+            const countResult = await pool.query('select count(*)::int as like_count from post_likes where post_id = $1', [postId]);
             res.json({ liked: false, like_count: countResult.rows[0].like_count });
         } else {
             // Like
-            await pool.query('INSERT INTO post_likes (post_id, user_id) VALUES ($1, $2)', [postId, userId]);
-            const countResult = await pool.query('SELECT COUNT(*)::int AS like_count FROM post_likes WHERE post_id = $1', [postId]);
+            await pool.query('insert into post_likes (post_id, user_id) values ($1, $2)', [postId, userId]);
+            const countResult = await pool.query('select count(*)::int as like_count from post_likes where post_id = $1', [postId]);
             res.json({ liked: true, like_count: countResult.rows[0].like_count });
         }
     } catch (error) {
@@ -854,11 +849,11 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 
     try {
         const query = `
-            SELECT pc.*, u.username, u.full_name, u.profile_picture
-            FROM post_comments pc
-            JOIN users u ON pc.user_id = u.user_id
-            WHERE pc.post_id = $1
-            ORDER BY pc.created_at ASC
+            select pc.*, u.username, u.full_name, u.profile_picture
+            from post_comments pc
+            join users u on pc.user_id = u.user_id
+            where pc.post_id = $1
+            order by pc.created_at asc
         `;
         const result = await pool.query(query, [postId]);
         res.json(result.rows);
@@ -880,18 +875,18 @@ app.post('/api/posts/:id/comments', authenticateToken, async (req, res) => {
         }
 
         const query = `
-            INSERT INTO post_comments (post_id, user_id, content, parent_id)
-            VALUES ($1, $2, $3, $4)
-            RETURNING *
+            insert into post_comments (post_id, user_id, content, parent_id)
+            values ($1, $2, $3, $4)
+            returning *
         `;
         const result = await pool.query(query, [postId, userId, content.trim(), parent_id || null]);
 
         // Return with user info
         const fullComment = await pool.query(`
-            SELECT pc.*, u.username, u.full_name, u.profile_picture
-            FROM post_comments pc
-            JOIN users u ON pc.user_id = u.user_id
-            WHERE pc.comment_id = $1
+            select pc.*, u.username, u.full_name, u.profile_picture
+            from post_comments pc
+            join users u on pc.user_id = u.user_id
+            where pc.comment_id = $1
         `, [result.rows[0].comment_id]);
 
         res.status(201).json(fullComment.rows[0]);
@@ -907,7 +902,7 @@ app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const ownerCheck = await pool.query('SELECT user_id FROM post_comments WHERE comment_id = $1', [commentId]);
+        const ownerCheck = await pool.query('select user_id from post_comments where comment_id = $1', [commentId]);
         if (ownerCheck.rows.length === 0) {
             return res.status(404).json({ error: 'Comment not found' });
         }
@@ -915,7 +910,7 @@ app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
             return res.status(403).json({ error: 'You can only delete your own comments' });
         }
 
-        await pool.query('DELETE FROM post_comments WHERE comment_id = $1', [commentId]);
+        await pool.query('delete from post_comments where comment_id = $1', [commentId]);
         res.json({ message: 'Comment deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -923,7 +918,7 @@ app.delete('/api/comments/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// movie rating — blends user ratings with the original IMDB vote_count/vote_average
+// movie rating 
 app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
@@ -935,26 +930,25 @@ app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
         }
 
         const upsertQuery = `
-            INSERT INTO movie_ratings (movie_id, user_id, rating)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (movie_id, user_id)
-            DO UPDATE SET rating = $3
-            RETURNING *
+            insert into movie_ratings (movie_id, user_id, rating)
+            values ($1, $2, $3)
+            on conflict (movie_id, user_id)
+            DO update set rating = $3
+            returning *
         `;
         await pool.query(upsertQuery, [movieId, userId, rating]);
 
-        // Compute weighted average: blend original IMDB data with user ratings
-        // We treat the original IMDB votes as a baseline and append our user ratings
+        //average
         const blendedStats = await pool.query(`
-            SELECT 
-                m.vote_average AS imdb_avg,
-                m.vote_count AS imdb_votes,
-                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
-                COALESCE(COUNT(r.rating), 0)::int AS user_count
-            FROM movies m
-            LEFT JOIN movie_ratings r ON r.movie_id = m.id
-            WHERE m.id = $1
-            GROUP BY m.vote_average, m.vote_count
+            select 
+                m.vote_average as imdb_avg,
+                m.vote_count as imdb_votes,
+                coalesce(avg(r.rating), 0)::numeric(4,2) as user_avg,
+                coalesce(count(r.rating), 0)::int as user_count
+            from movies m
+            left join movie_ratings r on r.movie_id = m.id
+            where m.id = $1
+            group by m.vote_average, m.vote_count
         `, [movieId]);
 
         let avg_rating, total_ratings;
@@ -964,7 +958,7 @@ app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
             const imdbVotes = parseInt(row.imdb_votes || 0);
             const userAvg = parseFloat(row.user_avg || 0);
             const userCount = parseInt(row.user_count || 0);
-            // Weighted average: (imdb_avg * imdb_votes + user_avg * user_count) / (imdb_votes + user_count)
+
             total_ratings = imdbVotes + userCount;
             avg_rating = total_ratings > 0
                 ? ((imdbAvg * imdbVotes + userAvg * userCount) / total_ratings)
@@ -987,7 +981,7 @@ app.post('/api/movies/:id/rate', authenticateToken, async (req, res) => {
     }
 });
 
-// rating get — returns blended IMDB + user rating
+// rating get 
 app.get('/api/movies/:id/rating', async (req, res) => {
     const movieId = req.params.id;
 
@@ -999,26 +993,26 @@ app.get('/api/movies/:id/rating', async (req, res) => {
             try {
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 const userRating = await pool.query(
-                    'SELECT rating FROM movie_ratings WHERE movie_id = $1 AND user_id = $2',
+                    'select rating from movie_ratings where movie_id = $1 and user_id = $2',
                     [movieId, decoded.userId]
                 );
                 if (userRating.rows.length > 0) {
                     myRating = parseFloat(userRating.rows[0].rating);
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
         }
 
-        // Blend IMDB votes with user ratings
+        // rating mix kore calculate
         const blendedStats = await pool.query(`
-            SELECT 
-                m.vote_average AS imdb_avg,
-                m.vote_count AS imdb_votes,
-                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
-                COALESCE(COUNT(r.rating), 0)::int AS user_count
-            FROM movies m
-            LEFT JOIN movie_ratings r ON r.movie_id = m.id
-            WHERE m.id = $1
-            GROUP BY m.vote_average, m.vote_count
+            select 
+                m.vote_average as imdb_avg,
+                m.vote_count as imdb_votes,
+                coalesce(avg(r.rating), 0)::numeric(4,2) as user_avg,
+                coalesce(count(r.rating), 0)::int as user_count
+            from movies m
+            left join movie_ratings r on r.movie_id = m.id
+            where m.id = $1
+            group by m.vote_average, m.vote_count
         `, [movieId]);
 
         let avg_rating = 0, total_ratings = 0;
@@ -1049,11 +1043,11 @@ app.get('/api/movies/:id/comments', async (req, res) => {
     const movieId = req.params.id;
     try {
         const query = `
-            SELECT mc.*, u.username, u.full_name, u.profile_picture
-            FROM movie_comments mc
-            JOIN users u ON mc.user_id = u.user_id
-            WHERE mc.movie_id = $1
-            ORDER BY mc.created_at ASC
+            select mc.*, u.username, u.full_name, u.profile_picture
+            from movie_comments mc
+            join users u on mc.user_id = u.user_id
+            where mc.movie_id = $1
+            order by mc.created_at asc
         `;
         const result = await pool.query(query, [movieId]);
         res.json(result.rows);
@@ -1075,15 +1069,15 @@ app.post('/api/movies/:id/comments', authenticateToken, async (req, res) => {
         }
 
         const result = await pool.query(
-            'INSERT INTO movie_comments (movie_id, user_id, content, parent_id) VALUES ($1, $2, $3, $4) RETURNING *',
+            'insert into movie_comments (movie_id, user_id, content, parent_id) values ($1, $2, $3, $4) returning *',
             [movieId, userId, content.trim(), parent_id || null]
         );
 
         const fullComment = await pool.query(`
-            SELECT mc.*, u.username, u.full_name, u.profile_picture
-            FROM movie_comments mc
-            JOIN users u ON mc.user_id = u.user_id
-            WHERE mc.comment_id = $1
+            select mc.*, u.username, u.full_name, u.profile_picture
+            from movie_comments mc
+            join users u on mc.user_id = u.user_id
+            where mc.comment_id = $1
         `, [result.rows[0].comment_id]);
 
         res.status(201).json(fullComment.rows[0]);
@@ -1099,11 +1093,11 @@ app.delete('/api/movie-comments/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const check = await pool.query('SELECT user_id FROM movie_comments WHERE comment_id = $1', [commentId]);
+        const check = await pool.query('select user_id from movie_comments where comment_id = $1', [commentId]);
         if (check.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });
         if (check.rows[0].user_id !== userId) return res.status(403).json({ error: 'You can only delete your own comments' });
 
-        await pool.query('DELETE FROM movie_comments WHERE comment_id = $1', [commentId]);
+        await pool.query('delete from movie_comments where comment_id = $1', [commentId]);
         res.json({ message: 'Comment deleted' });
     } catch (error) {
         console.error(error);
@@ -1116,12 +1110,12 @@ app.post('/api/movies/:id/watchlist', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
     try {
-        const existing = await pool.query('SELECT * FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        const existing = await pool.query('select * from watchlist where user_id = $1 and movie_id = $2', [userId, movieId]);
         if (existing.rows.length > 0) {
-            await pool.query('DELETE FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            await pool.query('delete from watchlist where user_id = $1 and movie_id = $2', [userId, movieId]);
             res.json({ in_watchlist: false });
         } else {
-            await pool.query('INSERT INTO watchlist (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            await pool.query('insert into watchlist (user_id, movie_id) values ($1, $2)', [userId, movieId]);
             res.json({ in_watchlist: true });
         }
     } catch (error) {
@@ -1135,12 +1129,12 @@ app.post('/api/movies/:id/favourite', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
     try {
-        const existing = await pool.query('SELECT * FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        const existing = await pool.query('select * from user_favourites where user_id = $1 and movie_id = $2', [userId, movieId]);
         if (existing.rows.length > 0) {
-            await pool.query('DELETE FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            await pool.query('delete from user_favourites where user_id = $1 and movie_id = $2', [userId, movieId]);
             res.json({ is_favourite: false });
         } else {
-            await pool.query('INSERT INTO user_favourites (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            await pool.query('insert into user_favourites (user_id, movie_id) values ($1, $2)', [userId, movieId]);
             res.json({ is_favourite: true });
         }
     } catch (error) {
@@ -1154,12 +1148,12 @@ app.post('/api/movies/:id/watched', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
     try {
-        const existing = await pool.query('SELECT * FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        const existing = await pool.query('select * from user_watched where user_id = $1 and movie_id = $2', [userId, movieId]);
         if (existing.rows.length > 0) {
-            await pool.query('DELETE FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            await pool.query('delete from user_watched where user_id = $1 and movie_id = $2', [userId, movieId]);
             res.json({ is_watched: false });
         } else {
-            await pool.query('INSERT INTO user_watched (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            await pool.query('insert into user_watched (user_id, movie_id) values ($1, $2)', [userId, movieId]);
             res.json({ is_watched: true });
         }
     } catch (error) {
@@ -1174,9 +1168,9 @@ app.get('/api/movies/:id/status', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const [wl, fav, watched] = await Promise.all([
-            pool.query('SELECT 1 FROM watchlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]),
-            pool.query('SELECT 1 FROM user_favourites WHERE user_id = $1 AND movie_id = $2', [userId, movieId]),
-            pool.query('SELECT 1 FROM user_watched WHERE user_id = $1 AND movie_id = $2', [userId, movieId])
+            pool.query('select 1 from watchlist where user_id = $1 and movie_id = $2', [userId, movieId]),
+            pool.query('select 1 from user_favourites where user_id = $1 and movie_id = $2', [userId, movieId]),
+            pool.query('select 1 from user_watched where user_id = $1 and movie_id = $2', [userId, movieId])
         ]);
         res.json({
             in_watchlist: wl.rows.length > 0,
@@ -1194,15 +1188,15 @@ app.get('/api/movies/:id/related', async (req, res) => {
     const movieId = req.params.id;
     try {
         const query = `
-            SELECT DISTINCT m.id, m.title, m.poster_path, m.vote_average, m.release_date
-            FROM movies m
-            JOIN movie_genres mg ON m.id = mg.movie_id
-            WHERE mg.genre_id IN (
-                SELECT genre_id FROM movie_genres WHERE movie_id = $1
+            select distinct m.id, m.title, m.poster_path, m.vote_average, m.release_date
+            from movies m
+            join movie_genres mg on m.id = mg.movie_id
+            where mg.genre_id in (
+                select genre_id from movie_genres where movie_id = $1
             )
-            AND m.id != $1
-            ORDER BY m.vote_average DESC NULLS LAST
-            LIMIT 10
+            and m.id != $1
+            order by m.vote_average desc nulls last
+            limit 10
         `;
         const result = await pool.query(query, [movieId]);
         res.json(result.rows);
@@ -1217,9 +1211,9 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT user_id, email, username, full_name, date_of_birth, gender, 
+            `select user_id, email, username, full_name, date_of_birth, gender, 
                     phone_number, address, profile_picture, date_joined, is_admin
-             FROM users WHERE user_id = $1`,
+             from users where user_id = $1`,
             [userId]
         );
         if (result.rows.length === 0) {
@@ -1232,20 +1226,20 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// UPDATE PROFILE 
+// update PROFILE 
 app.put('/api/profile', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const { full_name, phone_number, address, profile_picture } = req.body;
 
     try {
         const result = await pool.query(
-            `UPDATE users SET 
-                full_name = COALESCE($1, full_name),
-                phone_number = COALESCE($2, phone_number),
-                address = COALESCE($3, address),
-                profile_picture = COALESCE($4, profile_picture)
-             WHERE user_id = $5
-             RETURNING user_id, email, username, full_name, date_of_birth, gender, 
+            `update users set 
+                full_name = coalesce($1, full_name),
+                phone_number = coalesce($2, phone_number),
+                address = coalesce($3, address),
+                profile_picture = coalesce($4, profile_picture)
+             where user_id = $5
+             returning user_id, email, username, full_name, date_of_birth, gender, 
                        phone_number, address, profile_picture, created_at`,
             [full_name, phone_number, address, profile_picture, userId]
         );
@@ -1271,7 +1265,7 @@ app.put('/api/profile/password', authenticateToken, async (req, res) => {
         }
 
         // Verify current password
-        const user = await pool.query('SELECT password FROM users WHERE user_id = $1', [userId]);
+        const user = await pool.query('select password from users where user_id = $1', [userId]);
         if (user.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
         }
@@ -1283,7 +1277,7 @@ app.put('/api/profile/password', authenticateToken, async (req, res) => {
 
         // Abar hash koro
         const passwordHash = await bcrypt.hash(new_password, 10);
-        await pool.query('UPDATE users SET password = $1 WHERE user_id = $2', [passwordHash, userId]);
+        await pool.query('update users set password = $1 where user_id = $2', [passwordHash, userId]);
 
         res.json({ message: 'Password changed successfully' });
     } catch (error) {
@@ -1297,12 +1291,12 @@ app.get('/api/profile/watchlist', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT w.movie_id, w.created_at AS added_at,
+            `select w.movie_id, w.created_at as added_at,
                     m.title, m.poster_path, m.vote_average, m.release_date, m.overview
-             FROM watchlist w
-             LEFT JOIN movies m ON w.movie_id = m.id
-             WHERE w.user_id = $1
-             ORDER BY w.created_at DESC`,
+             from watchlist w
+             left join movies m on w.movie_id = m.id
+             where w.user_id = $1
+             order by w.created_at desc`,
             [userId]
         );
         res.json(result.rows);
@@ -1317,12 +1311,12 @@ app.post('/api/movies/:id/wishlist', authenticateToken, async (req, res) => {
     const movieId = req.params.id;
     const userId = req.user.userId;
     try {
-        const existing = await pool.query('SELECT * FROM wishlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+        const existing = await pool.query('select * from wishlist where user_id = $1 and movie_id = $2', [userId, movieId]);
         if (existing.rows.length > 0) {
-            await pool.query('DELETE FROM wishlist WHERE user_id = $1 AND movie_id = $2', [userId, movieId]);
+            await pool.query('delete from wishlist where user_id = $1 and movie_id = $2', [userId, movieId]);
             res.json({ in_wishlist: false });
         } else {
-            await pool.query('INSERT INTO wishlist (user_id, movie_id) VALUES ($1, $2)', [userId, movieId]);
+            await pool.query('insert into wishlist (user_id, movie_id) values ($1, $2)', [userId, movieId]);
             res.json({ in_wishlist: true });
         }
     } catch (error) {
@@ -1336,12 +1330,12 @@ app.get('/api/profile/wishlist', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT w.movie_id, w.created_at AS added_at,
+            `select w.movie_id, w.created_at as added_at,
                     m.title, m.poster_path, m.vote_average, m.release_date, m.overview
-             FROM wishlist w
-             LEFT JOIN movies m ON w.movie_id = m.id
-             WHERE w.user_id = $1
-             ORDER BY w.created_at DESC`,
+             from wishlist w
+             left join movies m on w.movie_id = m.id
+             where w.user_id = $1
+             order by w.created_at desc`,
             [userId]
         );
         res.json(result.rows);
@@ -1357,12 +1351,12 @@ app.get('/api/profile/favourites', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT uf.movie_id, uf.created_at AS added_at,
+            `select uf.movie_id, uf.created_at as added_at,
                     m.title, m.poster_path, m.vote_average, m.release_date, m.overview
-             FROM user_favourites uf
-             LEFT JOIN movies m ON uf.movie_id = m.id
-             WHERE uf.user_id = $1
-             ORDER BY uf.created_at DESC`,
+             from user_favourites uf
+             left join movies m on uf.movie_id = m.id
+             where uf.user_id = $1
+             order by uf.created_at desc`,
             [userId]
         );
         res.json(result.rows);
@@ -1377,12 +1371,12 @@ app.get('/api/profile/ratings', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT mr.movie_id, mr.rating, mr.created_at AS rated_at,
+            `select mr.movie_id, mr.rating, mr.created_at as rated_at,
                     m.title, m.poster_path, m.vote_average, m.release_date
-             FROM movie_ratings mr
-             LEFT JOIN movies m ON mr.movie_id = m.id
-             WHERE mr.user_id = $1
-             ORDER BY mr.created_at DESC`,
+             from movie_ratings mr
+             left join movies m on mr.movie_id = m.id
+             where mr.user_id = $1
+             order by mr.created_at desc`,
             [userId]
         );
         res.json(result.rows);
@@ -1400,15 +1394,15 @@ app.post('/api/people/:id/follow', authenticateToken, async (req, res) => {
 
     try {
         const existing = await pool.query(
-            'SELECT * FROM favourite_people WHERE user_id = $1 AND person_id = $2',
+            'select * from favourite_people where user_id = $1 and person_id = $2',
             [userId, personId]
         );
         if (existing.rows.length > 0) {
-            await pool.query('DELETE FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+            await pool.query('delete from favourite_people where user_id = $1 and person_id = $2', [userId, personId]);
             res.json({ is_following: false });
         } else {
             await pool.query(
-                'INSERT INTO favourite_people (user_id, person_id, person_name, person_role, profile_path) VALUES ($1, $2, $3, $4, $5)',
+                'insert into favourite_people (user_id, person_id, person_name, person_role, profile_path) values ($1, $2, $3, $4, $5)',
                 [userId, personId, person_name || 'Unknown', person_role || null, profile_path || null]
             );
             res.json({ is_following: true });
@@ -1424,7 +1418,7 @@ app.get('/api/profile/favourite-people', authenticateToken, async (req, res) => 
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            `SELECT * FROM favourite_people WHERE user_id = $1 ORDER BY created_at DESC`,
+            `select * from favourite_people where user_id = $1 order by created_at desc`,
             [userId]
         );
         res.json(result.rows);
@@ -1437,32 +1431,32 @@ app.get('/api/profile/favourite-people', authenticateToken, async (req, res) => 
 // genre preference
 app.put('/api/profile/interests', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
-    const { genre_ids } = req.body; // array of genre_id integers
+    const { genre_ids } = req.body;
 
     const client = await pool.connect();
     try {
-        await client.query('BEGIN');
+        await client.query('begin');
         // Clear existing interests
-        await client.query('DELETE FROM user_interests WHERE user_id = $1', [userId]);
+        await client.query('delete from user_interests where user_id = $1', [userId]);
         // Insert new ones
         if (genre_ids && genre_ids.length > 0) {
             const values = genre_ids.map((gid, i) => `($1, $${i + 2})`).join(', ');
             const params = [userId, ...genre_ids];
-            await client.query(`INSERT INTO user_interests (user_id, genre_id) VALUES ${values}`, params);
+            await client.query(`insert into user_interests (user_id, genre_id) values ${values}`, params);
         }
-        await client.query('COMMIT');
+        await client.query('commit');
 
-        // Return updated interests
+        // genre select update er query
         const result = await pool.query(
-            `SELECT ui.genre_id, g.name AS genre_name
-             FROM user_interests ui
-             LEFT JOIN genres g ON ui.genre_id = g.id
-             WHERE ui.user_id = $1`,
+            `select ui.genre_id, g.name as genre_name
+             from user_interests ui
+             left join genres g on ui.genre_id = g.id
+             where ui.user_id = $1`,
             [userId]
         );
         res.json({ message: 'Interests updated', interests: result.rows });
     } catch (error) {
-        await client.query('ROLLBACK');
+        await client.query('rollback');
         console.error(error);
         res.status(500).json({ error: 'Failed to update interests' });
     } finally {
@@ -1476,81 +1470,81 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
     try {
         // koyta dekhse
         const watchedCount = await pool.query(
-            'SELECT COUNT(*)::int AS count FROM user_watched WHERE user_id = $1', [userId]
+            'select count(*)::int as count from user_watched where user_id = $1', [userId]
         );
 
         // Average rating given
         const avgRating = await pool.query(
-            'SELECT COALESCE(AVG(rating), 0)::numeric(3,1) AS avg FROM movie_ratings WHERE user_id = $1', [userId]
+            'select coalesce(avg(rating), 0)::numeric(3,1) as avg from movie_ratings where user_id = $1', [userId]
         );
 
         // Total ratings given
         const ratingsCount = await pool.query(
-            'SELECT COUNT(*)::int AS count FROM movie_ratings WHERE user_id = $1', [userId]
+            'select count(*)::int as count from movie_ratings where user_id = $1', [userId]
         );
 
         // Watchlist count
         const watchlistCount = await pool.query(
-            'SELECT COUNT(*)::int AS count FROM watchlist WHERE user_id = $1', [userId]
+            'select count(*)::int as count from watchlist where user_id = $1', [userId]
         );
 
         // Favourites count
         const favouritesCount = await pool.query(
-            'SELECT COUNT(*)::int AS count FROM user_favourites WHERE user_id = $1', [userId]
+            'select count(*)::int as count from user_favourites where user_id = $1', [userId]
         );
 
         // Genre distribution 
         const genreDistribution = await pool.query(
-            `SELECT g.name, COUNT(*)::int AS count
-             FROM user_watched uw
-             JOIN movie_genres mg ON uw.movie_id = mg.movie_id
-             JOIN genres g ON mg.genre_id = g.id
-             WHERE uw.user_id = $1
-             GROUP BY g.name
-             ORDER BY count DESC
-             LIMIT 10`,
+            `select g.name, count(*)::int as count
+             from user_watched uw
+             join movie_genres mg on uw.movie_id = mg.movie_id
+             join genres g on mg.genre_id = g.id
+             where uw.user_id = $1
+             group by g.name
+             order by count desc
+             limit 10`,
             [userId]
         );
 
         // Rating distribution 
         const ratingDistribution = await pool.query(
-            `SELECT FLOOR(rating)::int AS rating_value, COUNT(*)::int AS count
-             FROM movie_ratings
-             WHERE user_id = $1
-             GROUP BY FLOOR(rating)
-             ORDER BY rating_value`,
+            `select floor(rating)::int as rating_value, count(*)::int as count
+             from movie_ratings
+             where user_id = $1
+             group by floor(rating)
+             order by rating_value`,
             [userId]
         );
 
         // Monthly activity 
         const monthlyActivity = await pool.query(
-            `SELECT 
-                TO_CHAR(created_at, 'YYYY-MM') AS month,
-                COUNT(*)::int AS activity_count
-             FROM user_activity
-             WHERE user_id = $1 AND created_at >= NOW() - INTERVAL '6 months'
-             GROUP BY TO_CHAR(created_at, 'YYYY-MM')
-             ORDER BY month`,
+            `select 
+                to_char(created_at, 'YYYY-MM') as month,
+                count(*)::int as activity_count
+             from user_activity
+             where user_id = $1 and created_at >= now() - interval '6 months'
+             group by to_char(created_at, 'YYYY-MM')
+             order by month`,
             [userId]
         );
 
         // Recent activity
         const recentActivity = await pool.query(
-            `SELECT ua.*, m.title AS movie_title, m.poster_path
-             FROM user_activity ua
-             LEFT JOIN movies m ON ua.movie_id = m.id
-             WHERE ua.user_id = $1
-             ORDER BY ua.created_at DESC
-             LIMIT 20`,
+            `select ua.*, m.title as movie_title, m.poster_path
+             from user_activity ua
+             left join movies m on ua.movie_id = m.id
+             where ua.user_id = $1
+             order by ua.created_at desc
+             limit 20`,
             [userId]
         );
 
         // User interests
         const interests = await pool.query(
-            `SELECT ui.genre_id, g.name AS genre_name
-             FROM user_interests ui
-             LEFT JOIN genres g ON ui.genre_id = g.id
-             WHERE ui.user_id = $1`,
+            `select ui.genre_id, g.name as genre_name
+             from user_interests ui
+             left join genres g on ui.genre_id = g.id
+             where ui.user_id = $1`,
             [userId]
         );
 
@@ -1578,7 +1572,7 @@ app.get('/api/movies/:id/wishlist-status', authenticateToken, async (req, res) =
     const userId = req.user.userId;
     try {
         const result = await pool.query(
-            'SELECT 1 FROM wishlist WHERE user_id = $1 AND movie_id = $2',
+            'select 1 from wishlist where user_id = $1 and movie_id = $2',
             [userId, movieId]
         );
         res.json({ in_wishlist: result.rows.length > 0 });
@@ -1596,7 +1590,7 @@ app.get('/api/movies/search', async (req, res) => {
         if (!q) {
             return res.json([]);
         }
-        
+
         const moviesResult = await pool.query(
             `select 
                m.id, 
@@ -1611,7 +1605,7 @@ app.get('/api/movies/search', async (req, res) => {
              left join movie_ratings r on r.movie_id = m.id
              where m.title ilike $1
              group by m.id, m.title, m.poster_path, m.release_date, m.overview
-             ORDER bY m.title ASC
+             ORDER bY m.title asc
              LIMIt 5`,
             [`%${q}%`]
         );
@@ -1630,14 +1624,14 @@ app.get('/api/movies/search', async (req, res) => {
              left join series_ratings r on r.series_id = s.tmdb_id
              where s.name ilike $1
              group by s.tmdb_id, s.name, s.poster_path, s.first_air_date, s.overview
-             ORDER bY s.name ASC
+             ORDER bY s.name asc
              LIMIt 5`,
             [`%${q}%`]
         );
 
         const combined = [...moviesResult.rows, ...seriesesResult.rows];
         // Sort by title lexicographically and limit to 8 combined results
-        combined.sort((a,b) => a.title.localeCompare(b.title));
+        combined.sort((a, b) => a.title.localeCompare(b.title));
         return res.json(combined.slice(0, 8));
     } catch (error) {
         console.error('Movie search error:', error);
@@ -1663,7 +1657,7 @@ app.get('/api/movies/mention', async (req, res) => {
              where m.title ilike '%' || $1 || '%'
              group by m.id, m.title, m.poster_path, m.release_date
              order by rating_count desc, avg_rating desc, m.title asc
-             LIMIT 3`,
+             limit 3`,
             [q]
         );
         return res.json(result.rows);
@@ -1694,27 +1688,27 @@ app.get('/api/movies/resolve', async (req, res) => {
 app.get('/api/mention/search', async (req, res) => {
     try {
         const q = (req.query.q || '').trim();
-        
+
         let movies, series;
         if (!q) {
             // Return top 5 trending if no query
-            movies = await pool.query(`SELECT id, title as name, poster_path, 'movie' as type, release_date, popularity FROM movies ORDER BY popularity DESC LIMIT 5`);
-            series = await pool.query(`SELECT tmdb_id as id, name, poster_path, 'series' as type, first_air_date as release_date, popularity FROM serieses ORDER BY popularity DESC LIMIT 5`);
+            movies = await pool.query(`select id, title as name, poster_path, 'movie' as type, release_date, popularity from movies order by popularity desc limit 5`);
+            series = await pool.query(`select tmdb_id as id, name, poster_path, 'series' as type, first_air_date as release_date, popularity from serieses order by popularity desc limit 5`);
         } else {
             // Search both tables
             movies = await pool.query(
-                `SELECT id, title as name, poster_path, 'movie' as type, release_date, popularity 
-                 FROM movies WHERE title ILIKE $1 ORDER BY popularity DESC LIMIT 5`,
+                `select id, title as name, poster_path, 'movie' as type, release_date, popularity 
+                 from movies where title ilike $1 order by popularity desc limit 5`,
                 [`%${q}%`]
             );
             series = await pool.query(
-                `SELECT tmdb_id as id, name, poster_path, 'series' as type, first_air_date as release_date, popularity
-                 FROM serieses WHERE name ILIKE $1 ORDER BY popularity DESC LIMIT 5`,
+                `select tmdb_id as id, name, poster_path, 'series' as type, first_air_date as release_date, popularity
+                 from serieses where name ilike $1 order by popularity desc limit 5`,
                 [`%${q}%`]
             );
         }
 
-        const combined = [...movies.rows, ...series.rows].sort((a,b) => (b.popularity || 0) - (a.popularity || 0));
+        const combined = [...movies.rows, ...series.rows].sort((a, b) => (b.popularity || 0) - (a.popularity || 0));
         res.json(combined);
     } catch (err) {
         console.error('Mention search error:', err);
@@ -1730,15 +1724,14 @@ app.get('/api/movies/mention/resolve', async (req, res) => {
         const id = req.query.id;
 
         if (id) {
-            // New direct-id lookup
+            // direct-id lookup
             const table = type === 'series' ? 'serieses' : 'movies';
             const idCol = type === 'series' ? 'tmdb_id' : 'id';
             const nameCol = type === 'series' ? 'name' : 'title';
-            const result = await pool.query(`SELECT ${idCol} as id, ${nameCol} as title, poster_path FROM ${table} WHERE ${idCol} = $1`, [id]);
+            const result = await pool.query(`select ${idCol} as id, ${nameCol} as title, poster_path from ${table} where ${idCol} = $1`, [id]);
             if (result.rows.length > 0) return res.json(result.rows[0]);
         }
 
-        // Legacy fuzzy lookup
         if (!text) return res.status(400).json({ error: 'text is required' });
         const result = await pool.query(
             `select id, title, poster_path, 'movie' as type
@@ -1758,7 +1751,7 @@ app.get('/api/movies/mention/resolve', async (req, res) => {
 
 app.get('/api/genres', async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, name FROM genres ORDER BY name');
+        const result = await pool.query('select id, name from genres order by name');
         res.json(result.rows);
     } catch (error) {
         console.error(error);
@@ -1797,24 +1790,23 @@ app.get('/api/series/:id/rating', async (req, res) => {
             try {
                 const user = jwt.verify(token, process.env.JWT_SECRET);
                 // series_ratings.series_id corresponds to serieses.tmdb_id
-                const userRatingRes = await pool.query('SELECT rating FROM series_ratings WHERE series_id = $1 AND user_id = $2', [id, user.userId]);
+                const userRatingRes = await pool.query('select rating from series_ratings where series_id = $1 and user_id = $2', [id, user.userId]);
                 if (userRatingRes.rows.length > 0) {
                     myRating = parseFloat(userRatingRes.rows[0].rating);
                 }
             } catch (e) { }
         }
 
-        // Blend IMDB votes with user ratings
         const blended = await pool.query(`
-            SELECT 
-                s.vote_average AS imdb_avg,
-                s.vote_count AS imdb_votes,
-                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
-                COALESCE(COUNT(r.rating), 0)::int AS user_count
-            FROM serieses s
-            LEFT JOIN series_ratings r ON r.series_id = s.tmdb_id
-            WHERE s.tmdb_id = $1
-            GROUP BY s.vote_average, s.vote_count
+            select 
+                s.vote_average as imdb_avg,
+                s.vote_count as imdb_votes,
+                coalesce(avg(r.rating), 0)::numeric(4,2) as user_avg,
+                coalesce(count(r.rating), 0)::int as user_count
+            from serieses s
+            left join series_ratings r on r.series_id = s.tmdb_id
+            where s.tmdb_id = $1
+            group by s.vote_average, s.vote_count
         `, [id]);
 
         if (blended.rows.length > 0) {
@@ -1847,26 +1839,25 @@ app.post('/api/series/:id/rate', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Rating must be between 1 and 10' });
         }
 
-        // series_ratings uses series_id which corresponds to serieses.tmdb_id
+        // series_ratings 
         await pool.query(
-            `INSERT INTO series_ratings (series_id, user_id, rating) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (series_id, user_id) 
-             DO UPDATE SET rating = excluded.rating`,
+            `insert into series_ratings (series_id, user_id, rating) 
+             values ($1, $2, $3) 
+             on conflict (series_id, user_id) 
+             DO update set rating = excluded.rating`,
             [id, userId, rating]
         );
 
-        // Compute blended rating: IMDB base + user ratings
         const blended = await pool.query(`
-            SELECT 
-                s.vote_average AS imdb_avg,
-                s.vote_count AS imdb_votes,
-                COALESCE(AVG(r.rating), 0)::numeric(4,2) AS user_avg,
-                COALESCE(COUNT(r.rating), 0)::int AS user_count
-            FROM serieses s
-            LEFT JOIN series_ratings r ON r.series_id = s.tmdb_id
-            WHERE s.tmdb_id = $1
-            GROUP BY s.vote_average, s.vote_count
+            select 
+                s.vote_average as imdb_avg,
+                s.vote_count as imdb_votes,
+                coalesce(avg(r.rating), 0)::numeric(4,2) as user_avg,
+                coalesce(count(r.rating), 0)::int as user_count
+            from serieses s
+            left join series_ratings r on r.series_id = s.tmdb_id
+            where s.tmdb_id = $1
+            group by s.vote_average, s.vote_count
         `, [id]);
 
         let avg_rating = parseFloat(rating), total_ratings = 1;
@@ -1900,9 +1891,9 @@ app.get('/api/series/:id/status', authenticateToken, async (req, res) => {
 
     try {
         const [watchlistRes, favRes, watchedRes] = await Promise.all([
-            pool.query('SELECT 1 FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]),
-            pool.query('SELECT 1 FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]),
-            pool.query('SELECT 1 FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id])
+            pool.query('select 1 from user_series_watchlist where user_id = $1 and series_id = $2', [userId, id]),
+            pool.query('select 1 from user_series_favourites where user_id = $1 and series_id = $2', [userId, id]),
+            pool.query('select 1 from user_series_watched where user_id = $1 and series_id = $2', [userId, id])
         ]);
 
         res.json({
@@ -1921,12 +1912,12 @@ app.post('/api/series/:id/watchlist', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const check = await pool.query('SELECT 1 FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]);
+        const check = await pool.query('select 1 from user_series_watchlist where user_id = $1 and series_id = $2', [userId, id]);
         if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_watchlist WHERE user_id = $1 AND series_id = $2', [userId, id]);
+            await pool.query('delete from user_series_watchlist where user_id = $1 and series_id = $2', [userId, id]);
             res.json({ in_watchlist: false, message: 'Removed from watchlist' });
         } else {
-            await pool.query('INSERT INTO user_series_watchlist (user_id, series_id) VALUES ($1, $2)', [userId, id]);
+            await pool.query('insert into user_series_watchlist (user_id, series_id) values ($1, $2)', [userId, id]);
             res.json({ in_watchlist: true, message: 'Added to watchlist' });
         }
     } catch (error) {
@@ -1939,12 +1930,12 @@ app.post('/api/series/:id/favourite', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const check = await pool.query('SELECT 1 FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]);
+        const check = await pool.query('select 1 from user_series_favourites where user_id = $1 and series_id = $2', [userId, id]);
         if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_favourites WHERE user_id = $1 AND series_id = $2', [userId, id]);
+            await pool.query('delete from user_series_favourites where user_id = $1 and series_id = $2', [userId, id]);
             res.json({ is_favourite: false, message: 'Removed from favourites' });
         } else {
-            await pool.query('INSERT INTO user_series_favourites (user_id, series_id) VALUES ($1, $2)', [userId, id]);
+            await pool.query('insert into user_series_favourites (user_id, series_id) values ($1, $2)', [userId, id]);
             res.json({ is_favourite: true, message: 'Added to favourites' });
         }
     } catch (error) {
@@ -1957,12 +1948,12 @@ app.post('/api/series/:id/watched', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const check = await pool.query('SELECT 1 FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id]);
+        const check = await pool.query('select 1 from user_series_watched where user_id = $1 and series_id = $2', [userId, id]);
         if (check.rows.length > 0) {
-            await pool.query('DELETE FROM user_series_watched WHERE user_id = $1 AND series_id = $2', [userId, id]);
+            await pool.query('delete from user_series_watched where user_id = $1 and series_id = $2', [userId, id]);
             res.json({ is_watched: false, message: 'Removed from watched' });
         } else {
-            await pool.query('INSERT INTO user_series_watched (user_id, series_id) VALUES ($1, $2)', [userId, id]);
+            await pool.query('insert into user_series_watched (user_id, series_id) values ($1, $2)', [userId, id]);
             res.json({ is_watched: true, message: 'Added to watched check' });
         }
     } catch (error) {
@@ -1974,11 +1965,11 @@ app.get('/api/series/:id/comments', async (req, res) => {
     const { id } = req.params;
     try {
         const query = `
-            SELECT c.*, u.username, u.full_name, u.profile_picture 
-            FROM series_comments c
-            JOIN users u ON c.user_id = u.user_id
-            WHERE c.series_id = $1
-            ORDER BY c.created_at ASC
+            select c.*, u.username, u.full_name, u.profile_picture 
+            from series_comments c
+            join users u on c.user_id = u.user_id
+            where c.series_id = $1
+            order by c.created_at asc
         `;
         const result = await pool.query(query, [id]);
         res.json(result.rows);
@@ -1999,13 +1990,13 @@ app.post('/api/series/:id/comments', authenticateToken, async (req, res) => {
 
     try {
         const result = await pool.query(
-            `INSERT INTO series_comments (series_id, user_id, content, parent_id) 
-             VALUES ($1, $2, $3, $4) RETURNING *`,
+            `insert into series_comments (series_id, user_id, content, parent_id) 
+             values ($1, $2, $3, $4) returning *`,
             [id, userId, content.trim(), parent_id || null]
         );
 
         const comment = result.rows[0];
-        const userRes = await pool.query('SELECT username, full_name, profile_picture FROM users WHERE user_id = $1', [userId]);
+        const userRes = await pool.query('select username, full_name, profile_picture from users where user_id = $1', [userId]);
         const user = userRes.rows[0];
 
         res.status(201).json({
@@ -2025,14 +2016,14 @@ app.delete('/api/series-comments/:id', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
 
     try {
-        const check = await pool.query('SELECT user_id FROM series_comments WHERE comment_id = $1', [id]);
+        const check = await pool.query('select user_id from series_comments where comment_id = $1', [id]);
         if (check.rows.length === 0) return res.status(404).json({ error: 'Comment not found' });
-        
+
         if (check.rows[0].user_id !== userId && !req.user.isAdmin) {
             return res.status(403).json({ error: 'Not authorized to delete this comment' });
         }
 
-        await pool.query('DELETE FROM series_comments WHERE comment_id = $1', [id]);
+        await pool.query('delete from series_comments where comment_id = $1', [id]);
         res.json({ message: 'Comment deleted successfully' });
     } catch (error) {
         console.error(error);
@@ -2043,19 +2034,17 @@ app.delete('/api/series-comments/:id', authenticateToken, async (req, res) => {
 
 
 
-// ==========================================
-// FRIENDS & PROFILE ROUTES
-// ==========================================
+// friend treind
 
 app.get('/api/users/search', async (req, res) => {
     const q = req.query.q || '';
     if (!q.trim()) return res.json([]);
     try {
         const query = `
-            SELECT user_id, username, full_name, profile_picture 
-            FROM users 
-            WHERE username ILIKE $1 OR full_name ILIKE $1 
-            LIMIT 20
+            select user_id, username, full_name, profile_picture 
+            from users 
+            where username ilike $1 or full_name ilike $1 
+            limit 20
         `;
         const result = await pool.query(query, [`%${q}%`]);
         res.json(result.rows);
@@ -2070,7 +2059,7 @@ app.get('/api/users/:id/profile', optionalAuthenticate, async (req, res) => {
     const currentUserId = req.user ? req.user.userId : null;
     try {
         const userRes = await pool.query(
-            'SELECT user_id, username, full_name, profile_picture, date_joined FROM users WHERE user_id = $1',
+            'select user_id, username, full_name, profile_picture, date_joined from users where user_id = $1',
             [targetUserId]
         );
         if (userRes.rows.length === 0) return res.status(404).json({ error: 'User not found' });
@@ -2079,9 +2068,9 @@ app.get('/api/users/:id/profile', optionalAuthenticate, async (req, res) => {
         let actionUserId = null;
         if (currentUserId && currentUserId !== parseInt(targetUserId)) {
             const fRes = await pool.query(
-                `SELECT status, requester_id FROM friend_requests 
-                 WHERE (requester_id = $1 AND receiver_id = $2) 
-                    OR (requester_id = $2 AND receiver_id = $1)`,
+                `select status, requester_id from friend_requests 
+                 where (requester_id = $1 and receiver_id = $2) 
+                    or (requester_id = $2 and receiver_id = $1)`,
                 [currentUserId, targetUserId]
             );
             if (fRes.rows.length > 0) {
@@ -2097,18 +2086,18 @@ app.get('/api/users/:id/profile', optionalAuthenticate, async (req, res) => {
 });
 
 app.get('/api/users/:id/posts', optionalAuthenticate, async (req, res) => {
-    // Current user can see if they've liked posts
+    // Current user poster pike dekhte parbe
     const currentUserId = req.user ? req.user.userId : null;
     try {
         const query = `
-            SELECT sp.*, u.username, u.full_name, u.profile_picture,
-                   (SELECT COUNT(*) FROM post_likes WHERE post_id = sp.post_id) AS like_count,
-                   (SELECT COUNT(*) FROM post_comments WHERE post_id = sp.post_id) AS comment_count,
-                   CASE WHEN $2::int IS NOT NULL AND EXISTS(SELECT 1 FROM post_likes WHERE post_id = sp.post_id AND user_id = $2) THEN true ELSE false END AS liked_by_me
-            FROM social_posts sp
-            JOIN users u ON sp.user_id = u.user_id
-            WHERE sp.user_id = $1
-            ORDER BY sp.created_at DESC
+            select sp.*, u.username, u.full_name, u.profile_picture,
+                   (select count(*) from post_likes where post_id = sp.post_id) as like_count,
+                   (select count(*) from post_comments where post_id = sp.post_id) as comment_count,
+                   case when $2::int is not null and exists(select 1 from post_likes where post_id = sp.post_id and user_id = $2) then true else false end as liked_by_me
+            from social_posts sp
+            join users u on sp.user_id = u.user_id
+            where sp.user_id = $1
+            order by sp.created_at desc
         `;
         const result = await pool.query(query, [req.params.id, currentUserId]);
         res.json(result.rows);
@@ -2123,24 +2112,24 @@ app.post('/api/friends/request/:id', authenticateToken, async (req, res) => {
     const currentUserId = req.user.userId;
     if (currentUserId == targetUserId) return res.status(400).json({ error: 'Cannot add yourself' });
     try {
-        await pool.query('BEGIN');
+        await pool.query('begin');
         const fRes = await pool.query(
-            `INSERT INTO friend_requests (requester_id, receiver_id, status)
-             VALUES ($1, $2, 'pending')
-             ON CONFLICT (requester_id, receiver_id) DO NOTHING RETURNING id`,
+            `insert into friend_requests (requester_id, receiver_id, status)
+             values ($1, $2, 'pending')
+             on conflict (requester_id, receiver_id) do nothing returning id`,
             [currentUserId, targetUserId]
         );
-        const revRes = await pool.query(`SELECT id FROM friend_requests WHERE requester_id = $1 AND receiver_id = $2`, [targetUserId, currentUserId]);
+        const revRes = await pool.query(`select id from friend_requests where requester_id = $1 and receiver_id = $2`, [targetUserId, currentUserId]);
         if (fRes.rows.length > 0) {
-            const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
+            const uRes = await pool.query('select username from users where user_id = $1', [currentUserId]);
             await createNotification(targetUserId, currentUserId, 'friend_request', `${uRes.rows[0].username} sent you a friend request`);
         } else if (revRes.rows.length > 0) {
             return res.status(400).json({ error: 'Request already exists' });
         }
-        await pool.query('COMMIT');
+        await pool.query('commit');
         res.json({ message: 'Request sent' });
     } catch (err) {
-        await pool.query('ROLLBACK');
+        await pool.query('rollback');
         res.status(500).json({ error: 'Action failed' });
     }
 });
@@ -2149,24 +2138,24 @@ app.post('/api/friends/accept/:id', authenticateToken, async (req, res) => {
     const requesterId = req.params.id;
     const currentUserId = req.user.userId;
     try {
-        await pool.query('BEGIN');
+        await pool.query('begin');
         const upd = await pool.query(
-            `UPDATE friend_requests SET status = 'accepted', updated_at = NOW() 
-             WHERE requester_id = $1 AND receiver_id = $2 RETURNING id`,
+            `update friend_requests set status = 'accepted', updated_at = now() 
+             where requester_id = $1 and receiver_id = $2 returning id`,
             [requesterId, currentUserId]
         );
         if (upd.rows.length > 0) {
-            const uRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [currentUserId]);
+            const uRes = await pool.query('select username from users where user_id = $1', [currentUserId]);
             await createNotification(requesterId, currentUserId, 'friend_accept', `${uRes.rows[0].username} accepted your friend request`);
             await pool.query(
-                `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND sender_id = $2 AND type = 'friend_request'`,
+                `update notifications set is_read = TRUE where user_id = $1 and sender_id = $2 and type = 'friend_request'`,
                 [currentUserId, requesterId]
             );
         }
-        await pool.query('COMMIT');
+        await pool.query('commit');
         res.json({ message: 'Accepted' });
     } catch (err) {
-        await pool.query('ROLLBACK');
+        await pool.query('rollback');
         res.status(500).json({ error: 'Accept failed' });
     }
 });
@@ -2176,7 +2165,7 @@ app.post('/api/friends/reject/:id', authenticateToken, async (req, res) => {
     const currentUserId = req.user.userId;
     try {
         await pool.query(
-            `DELETE FROM friend_requests WHERE (requester_id = $1 AND receiver_id = $2) OR (requester_id = $2 AND receiver_id = $1)`,
+            `delete from friend_requests where (requester_id = $1 and receiver_id = $2) or (requester_id = $2 and receiver_id = $1)`,
             [currentUserId, targetUserId]
         );
         res.json({ message: 'Removed' });
@@ -2190,9 +2179,9 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
         const uId = req.user.userId || req.user.id || req.user.user_id;
         console.log(`[Notifications] Fetching for UID: ${uId}`);
         const result = await pool.query(
-            `SELECT n.*, u.username as sender_username, u.profile_picture as sender_picture
-             FROM notifications n LEFT JOIN users u ON n.sender_id = u.user_id
-             WHERE n.user_id = $1 ORDER BY n.created_at DESC LIMIT 50`,
+            `select n.*, u.username as sender_username, u.profile_picture as sender_picture
+             from notifications n left join users u on n.sender_id = u.user_id
+             where n.user_id = $1 order by n.created_at desc limit 50`,
             [uId]
         );
         res.json(result.rows);
@@ -2204,27 +2193,27 @@ app.get('/api/notifications', authenticateToken, async (req, res) => {
 
 app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
     try {
-        await pool.query('UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2', [req.params.id, req.user.userId]);
+        await pool.query('update notifications set is_read = TRUE where id = $1 and user_id = $2', [req.params.id, req.user.userId]);
         res.json({ success: true });
     } catch (err) {
         res.status(500).json({ error: 'Failed to mark read' });
     }
 });
 
-// ==========================================
-// DIRECT MESSAGES & DISCUSSIONS REST APIs
-// ==========================================
 
-// Get a list of friends for the DM sidebar (plus latest message info if possible, simplified for now to just friends)
+// DIRECT MESSAGES & DISCUSSIONS REST APIs
+
+
+// dm er panel
 app.get('/api/messages/friends', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT u.user_id, u.username, u.full_name, u.profile_picture 
-            FROM friend_requests f
-            JOIN users u ON (f.requester_id = u.user_id OR f.receiver_id = u.user_id)
-            WHERE f.status = 'accepted' 
-              AND (f.requester_id = $1 OR f.receiver_id = $1)
-              AND u.user_id != $1
+            select u.user_id, u.username, u.full_name, u.profile_picture 
+            from friend_requests f
+            join users u on (f.requester_id = u.user_id or f.receiver_id = u.user_id)
+            where f.status = 'accepted' 
+              and (f.requester_id = $1 or f.receiver_id = $1)
+              and u.user_id != $1
         `, [req.user.userId]);
         res.json(result.rows);
     } catch (err) {
@@ -2232,15 +2221,15 @@ app.get('/api/messages/friends', authenticateToken, async (req, res) => {
     }
 });
 
-// Get chat history with a specific user
+// chat history neya
 app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT * FROM direct_messages 
-            WHERE (sender_id = $1 AND receiver_id = $2) 
-               OR (sender_id = $2 AND receiver_id = $1)
-            ORDER BY created_at ASC
-            LIMIT 200
+            select * from direct_messages 
+            where (sender_id = $1 and receiver_id = $2) 
+               or (sender_id = $2 and receiver_id = $1)
+            order by created_at asc
+            limit 200
         `, [req.user.userId, req.params.userId]);
         res.json(result.rows);
     } catch (err) {
@@ -2248,32 +2237,32 @@ app.get('/api/messages/:userId', authenticateToken, async (req, res) => {
     }
 });
 
-// NEW: Get aggregated conversations for the "All" tab
+// all e shobai
 app.get('/api/chat/conversations', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(`
-            WITH last_messages AS (
-                SELECT DISTINCT ON (partner_id)
-                    CASE WHEN sender_id = $1 THEN receiver_id ELSE sender_id END AS partner_id,
+            WITH last_messages as (
+                select distinct on (partner_id)
+                    case when sender_id = $1 then receiver_id else sender_id end as partner_id,
                     message,
                     created_at,
                     sender_id
-                FROM direct_messages
-                WHERE sender_id = $1 OR receiver_id = $1
-                ORDER BY partner_id, created_at DESC
+                from direct_messages
+                where sender_id = $1 or receiver_id = $1
+                order by partner_id, created_at desc
             ),
-            unread_counts AS (
-                SELECT sender_id AS partner_id, COUNT(*)::int AS unread_count
-                FROM direct_messages
-                WHERE receiver_id = $1 AND read_at IS NULL
-                GROUP BY sender_id
+            unread_counts as (
+                select sender_id as partner_id, count(*)::int as unread_count
+                from direct_messages
+                where receiver_id = $1 and read_at is null
+                group by sender_id
             )
-            SELECT lm.*, u.username, u.full_name, u.profile_picture, COALESCE(uc.unread_count, 0) AS unread_count
-            FROM last_messages lm
-            JOIN users u ON lm.partner_id = u.user_id
-            LEFT JOIN unread_counts uc ON lm.partner_id = uc.partner_id
-            ORDER BY lm.created_at DESC
+            select lm.*, u.username, u.full_name, u.profile_picture, coalesce(uc.unread_count, 0) as unread_count
+            from last_messages lm
+            join users u on lm.partner_id = u.user_id
+            left join unread_counts uc on lm.partner_id = uc.partner_id
+            order by lm.created_at desc
         `, [userId]);
         res.json(result.rows);
     } catch (err) {
@@ -2282,11 +2271,11 @@ app.get('/api/chat/conversations', authenticateToken, async (req, res) => {
     }
 });
 
-// NEW: Global unread total
+// Global unread total
 app.get('/api/chat/unread-total', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(
-            'SELECT COUNT(*)::int AS total FROM direct_messages WHERE receiver_id = $1 AND read_at IS NULL',
+            'select count(*)::int as total from direct_messages where receiver_id = $1 and read_at is null',
             [req.user.userId]
         );
         res.json(result.rows[0]);
@@ -2295,15 +2284,15 @@ app.get('/api/chat/unread-total', authenticateToken, async (req, res) => {
     }
 });
 
-// NEW: Search users for Chat
+//Search users for chat
 app.get('/api/chat/search', authenticateToken, async (req, res) => {
     const { q } = req.query;
     if (!q) return res.json([]);
     try {
         const result = await pool.query(`
-            SELECT user_id, username, full_name, profile_picture FROM users 
-            WHERE (username ILIKE $1 OR full_name ILIKE $1) AND user_id != $2
-            LIMIT 10
+            select user_id, username, full_name, profile_picture from users 
+            where (username ilike $1 or full_name ilike $1) and user_id != $2
+            limit 10
         `, [`%${q}%`, req.user.userId]);
         res.json(result.rows);
     } catch (err) {
@@ -2311,11 +2300,11 @@ app.get('/api/chat/search', authenticateToken, async (req, res) => {
     }
 });
 
-// NEW: Mark messages from partner as read
+//  message read hoi
 app.post('/api/chat/read/:partnerId', authenticateToken, async (req, res) => {
     try {
         await pool.query(
-            'UPDATE direct_messages SET read_at = NOW() WHERE receiver_id = $1 AND sender_id = $2 AND read_at IS NULL',
+            'update direct_messages set read_at = now() where receiver_id = $1 and sender_id = $2 and read_at is null',
             [req.user.userId, req.params.partnerId]
         );
         res.json({ success: true });
@@ -2328,15 +2317,15 @@ app.post('/api/chat/read/:partnerId', authenticateToken, async (req, res) => {
 app.get('/api/discussions/feed', authenticateToken, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT d.*, u.username as creator_username, m.title as movie_title, m.poster_path
-            FROM discussions d
-            JOIN users u ON d.creator_id = u.user_id
-            LEFT JOIN movies m ON d.movie_id = m.id
-            WHERE d.access_level = 'public' 
-               OR d.creator_id = $1 
-               OR EXISTS (SELECT 1 FROM discussion_participants dp WHERE dp.discussion_id = d.id AND dp.user_id = $1)
-            ORDER BY d.created_at DESC
-            LIMIT 50
+            select d.*, u.username as creator_username, m.title as movie_title, m.poster_path
+            from discussions d
+            join users u on d.creator_id = u.user_id
+            left join movies m on d.movie_id = m.id
+            where d.access_level = 'public' 
+               or d.creator_id = $1 
+               or exists (select 1 from discussion_participants dp where dp.discussion_id = d.id and dp.user_id = $1)
+            order by d.created_at desc
+            limit 50
         `, [req.user.userId]);
         res.json(result.rows);
     } catch (err) {
@@ -2348,38 +2337,38 @@ app.get('/api/discussions/feed', authenticateToken, async (req, res) => {
 app.post('/api/discussions', authenticateToken, async (req, res) => {
     const { movie_id, title, access_level, max_participants } = req.body;
     try {
-        await pool.query('BEGIN');
+        await pool.query('begin');
         const dRes = await pool.query(`
-            INSERT INTO discussions (creator_id, movie_id, title, access_level, max_participants)
-            VALUES ($1, $2, $3, $4, $5) RETURNING *
+            insert into discussions (creator_id, movie_id, title, access_level, max_participants)
+            values ($1, $2, $3, $4, $5) returning *
         `, [req.user.userId, movie_id || null, title, access_level || 'public', max_participants || null]);
 
         const newGroup = dRes.rows[0];
-        // Add creator as admin
-        await pool.query(`INSERT INTO discussion_participants (discussion_id, user_id, role) VALUES ($1, $2, 'admin')`, [newGroup.id, req.user.userId]);
-        await pool.query('COMMIT');
+        // Add creator admin hishebe
+        await pool.query(`insert into discussion_participants (discussion_id, user_id, role) values ($1, $2, 'admin')`, [newGroup.id, req.user.userId]);
+        await pool.query('commit');
         res.json(newGroup);
     } catch (err) {
-        await pool.query('ROLLBACK');
+        await pool.query('rollback');
         res.status(500).json({ error: 'Failed to create discussion' });
     }
 });
 
-// Get specific discussion and its messages
+// discussion er history neya
 app.get('/api/discussions/:id', authenticateToken, async (req, res) => {
     try {
         const dRes = await pool.query(`
-            SELECT d.*, m.title as movie_title, m.poster_path 
-            FROM discussions d LEFT JOIN movies m ON d.movie_id = m.id WHERE d.id = $1
+            select d.*, m.title as movie_title, m.poster_path 
+            from discussions d left join movies m on d.movie_id = m.id where d.id = $1
         `, [req.params.id]);
         if (dRes.rows.length === 0) return res.status(404).json({ error: 'Not found' });
 
         const msgRes = await pool.query(`
-            SELECT dm.*, u.username as sender_username, u.profile_picture as sender_picture 
-            FROM discussion_messages dm
-            JOIN users u ON dm.sender_id = u.user_id
-            WHERE dm.discussion_id = $1
-            ORDER BY dm.created_at ASC LIMIT 100
+            select dm.*, u.username as sender_username, u.profile_picture as sender_picture 
+            from discussion_messages dm
+            join users u on dm.sender_id = u.user_id
+            where dm.discussion_id = $1
+            order by dm.created_at asc limit 100
         `, [req.params.id]);
 
         res.json({ discussion: dRes.rows[0], messages: msgRes.rows });
@@ -2388,77 +2377,76 @@ app.get('/api/discussions/:id', authenticateToken, async (req, res) => {
     }
 });
 
-// ==========================================
-// SOCIAL DISCOVERY ROUTES
-// ==========================================
 
-// Smart friend suggestions: 3-tier scoring (mutual friends, genre affinity, movie taste)
+// SOCIAL DISCOVERY ROUTES
+
+// friend suggest kore
 app.get('/api/social/suggested-friends', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     try {
         const result = await pool.query(`
-            WITH my_friends AS (
-                SELECT CASE WHEN requester_id = $1 THEN receiver_id ELSE requester_id END AS friend_id
-                FROM friend_requests
-                WHERE status = 'accepted' AND (requester_id = $1 OR receiver_id = $1)
+            WITH my_friends as (
+                select case when requester_id = $1 then receiver_id else requester_id end as friend_id
+                from friend_requests
+                where status = 'accepted' and (requester_id = $1 or receiver_id = $1)
             ),
-            candidates AS (
-                SELECT u.user_id, u.username, u.full_name, u.profile_picture
-                FROM users u
-                WHERE u.user_id != $1
-                  AND u.user_id NOT IN (SELECT friend_id FROM my_friends)
-                  AND u.user_id NOT IN (
-                      SELECT CASE WHEN requester_id = $1 THEN receiver_id ELSE requester_id END
-                      FROM friend_requests
-                      WHERE requester_id = $1 OR receiver_id = $1
+            candidates as (
+                select u.user_id, u.username, u.full_name, u.profile_picture
+                from users u
+                where u.user_id != $1
+                  and u.user_id not in (select friend_id from my_friends)
+                  and u.user_id not in (
+                      select case when requester_id = $1 then receiver_id else requester_id end
+                      from friend_requests
+                      where requester_id = $1 or receiver_id = $1
                   )
             ),
-            mutual_score AS (
-                SELECT c.user_id, COUNT(*)::int AS mutual_count
-                FROM candidates c
-                JOIN friend_requests fr ON fr.status = 'accepted'
-                    AND (
-                        (fr.requester_id = c.user_id AND fr.receiver_id IN (SELECT friend_id FROM my_friends))
-                        OR (fr.receiver_id = c.user_id AND fr.requester_id IN (SELECT friend_id FROM my_friends))
+            mutual_score as (
+                select c.user_id, count(*)::int as mutual_count
+                from candidates c
+                join friend_requests fr on fr.status = 'accepted'
+                    and (
+                        (fr.requester_id = c.user_id and fr.receiver_id in (select friend_id from my_friends))
+                        or (fr.receiver_id = c.user_id and fr.requester_id in (select friend_id from my_friends))
                     )
-                GROUP BY c.user_id
+                group by c.user_id
             ),
-            genre_score AS (
-                SELECT c.user_id, COUNT(*)::int AS genre_count,
-                       STRING_AGG(g.name, ', ' ORDER BY g.name) AS shared_genres
-                FROM candidates c
-                JOIN user_interests ui_them ON ui_them.user_id = c.user_id
-                JOIN user_interests ui_me   ON ui_me.user_id = $1 AND ui_me.genre_id = ui_them.genre_id
-                JOIN genres g ON g.id = ui_them.genre_id
-                GROUP BY c.user_id
+            genre_score as (
+                select c.user_id, count(*)::int as genre_count,
+                       string_agg(g.name, ', ' order by g.name) as shared_genres
+                from candidates c
+                join user_interests ui_them on ui_them.user_id = c.user_id
+                join user_interests ui_me   on ui_me.user_id = $1 and ui_me.genre_id = ui_them.genre_id
+                join genres g on g.id = ui_them.genre_id
+                group by c.user_id
             ),
-            taste_score AS (
-                SELECT c.user_id,
-                       COALESCE(SUM(GREATEST(0, (5 - ABS(r_them.rating - r_me.rating)) * 2)), 0)::int AS taste_pts
-                FROM candidates c
-                JOIN movie_ratings r_them ON r_them.user_id = c.user_id
-                JOIN movie_ratings r_me   ON r_me.user_id = $1 AND r_me.movie_id = r_them.movie_id
-                WHERE ABS(r_them.rating - r_me.rating) <= 2
-                GROUP BY c.user_id
+            taste_score as (
+                select c.user_id,
+                       coalesce(sum(GREATEST(0, (5 - ABS(r_them.rating - r_me.rating)) * 2)), 0)::int as taste_pts
+                from candidates c
+                join movie_ratings r_them on r_them.user_id = c.user_id
+                join movie_ratings r_me   on r_me.user_id = $1 and r_me.movie_id = r_them.movie_id
+                where ABS(r_them.rating - r_me.rating) <= 2
+                group by c.user_id
             )
-            SELECT
+            select
                 c.user_id, c.username, c.full_name, c.profile_picture,
-                COALESCE(ms.mutual_count, 0) * 10
-                  + COALESCE(gs.genre_count, 0) * 4
-                  + COALESCE(ts.taste_pts, 0) AS total_score,
-                COALESCE(ms.mutual_count, 0)  AS mutual_friends,
-                COALESCE(gs.shared_genres, '') AS shared_genres,
-                COALESCE(gs.genre_count, 0)   AS genre_count,
-                COALESCE(ts.taste_pts, 0)     AS taste_pts
-            FROM candidates c
-            LEFT JOIN mutual_score ms ON ms.user_id = c.user_id
-            LEFT JOIN genre_score  gs ON gs.user_id = c.user_id
-            LEFT JOIN taste_score  ts ON ts.user_id = c.user_id
-            WHERE COALESCE(ms.mutual_count, 0) > 0
-               OR COALESCE(gs.genre_count, 0) > 0
-               OR COALESCE(ts.taste_pts, 0) > 0
-            ORDER BY total_score DESC
-            LIMIT 6
+                coalesce(ms.mutual_count, 0) * 10
+                  + coalesce(gs.genre_count, 0) * 4
+                  + coalesce(ts.taste_pts, 0) as total_score,
+                coalesce(ms.mutual_count, 0)  as mutual_friends,
+                coalesce(gs.shared_genres, '') as shared_genres,
+                coalesce(gs.genre_count, 0)   as genre_count,
+                coalesce(ts.taste_pts, 0)     as taste_pts
+            from candidates c
+            left join mutual_score ms on ms.user_id = c.user_id
+            left join genre_score  gs on gs.user_id = c.user_id
+            left join taste_score  ts on ts.user_id = c.user_id
+            where coalesce(ms.mutual_count, 0) > 0
+               or coalesce(gs.genre_count, 0) > 0
+               or coalesce(ts.taste_pts, 0) > 0
+            order by total_score desc
+            limit 6
         `, [userId]);
 
         const suggestions = result.rows.map(row => {
@@ -2489,13 +2477,13 @@ app.get('/api/social/suggested-friends', authenticateToken, async (req, res) => 
     }
 });
 
-// Community stats for the social sidebar widget
+// Community stats soical e
 app.get('/api/social/community-stats', async (req, res) => {
     try {
         const [postCount, userCount, todayActive] = await Promise.all([
-            pool.query('SELECT COUNT(*)::int AS count FROM social_posts'),
-            pool.query('SELECT COUNT(*)::int AS count FROM users'),
-            pool.query(`SELECT COUNT(DISTINCT user_id)::int AS count FROM social_posts WHERE created_at >= NOW() - INTERVAL '24 hours'`)
+            pool.query('select count(*)::int as count from social_posts'),
+            pool.query('select count(*)::int as count from users'),
+            pool.query(`select count(distinct user_id)::int as count from social_posts where created_at >= now() - interval '24 hours'`)
         ]);
         res.json({
             total_posts: postCount.rows[0].count,
@@ -2508,14 +2496,13 @@ app.get('/api/social/community-stats', async (req, res) => {
     }
 });
 
-// ==========================================
+
 // ADMIN DASHBOARD ROUTES
-// ==========================================
 
 const logAdminActivity = async (adminId, actionType, targetEntity, targetId, details) => {
     try {
         await pool.query(
-            `INSERT INTO admin_activity_logs (admin_id, action_type, target_entity, target_id, details) VALUES ($1, $2, $3, $4, $5)`,
+            `insert into admin_activity_logs (admin_id, action_type, target_entity, target_id, details) values ($1, $2, $3, $4, $5)`,
             [adminId, actionType, targetEntity, targetId, details]
         );
     } catch (e) {
@@ -2527,26 +2514,25 @@ const createNotification = async (userId, senderId, type, message, relatedId = n
     try {
         console.log(`[Notifications] Creating notif for UID: ${userId}, Type: ${type}`);
         const res = await pool.query(
-            `INSERT INTO notifications (user_id, sender_id, type, message, related_id, created_at, is_read) 
-             VALUES ($1, $2, $3, $4, $5, NOW(), false) RETURNING *`,
+            `insert into notifications (user_id, sender_id, type, message, related_id, created_at, is_read) 
+             values ($1, $2, $3, $4, $5, now(), false) returning *`,
             [userId, senderId, type, message, relatedId]
         );
-        
+
         if (res.rows.length > 0) {
             const newNotif = res.rows[0];
             let senderInfo = { username: 'System', profile_picture: null };
             if (senderId) {
-                const s = await pool.query('SELECT username, profile_picture FROM users WHERE user_id = $1', [senderId]);
+                const s = await pool.query('select username, profile_picture from users where user_id = $1', [senderId]);
                 if (s.rows.length > 0) senderInfo = s.rows[0];
             }
-            
-            const payload = { 
-                ...newNotif, 
-                sender_username: senderInfo.username, 
-                sender_picture: senderInfo.profile_picture 
+
+            const payload = {
+                ...newNotif,
+                sender_username: senderInfo.username,
+                sender_picture: senderInfo.profile_picture
             };
-            
-            // Emit to the user's private socket room
+
             io.to(`user_${userId}`).emit('new_notification', payload);
             console.log(`[Notifications] Real-time emit to user_${userId}`);
         }
@@ -2565,7 +2551,7 @@ app.post('/api/social/report', authenticateToken, async (req, res) => {
 
     try {
         await pool.query(
-            `INSERT INTO reports (reporter_id, post_id, comment_id, reason) VALUES ($1, $2, $3, $4)`,
+            `insert into reports (reporter_id, post_id, comment_id, reason) values ($1, $2, $3, $4)`,
             [userId, post_id || null, comment_id || null, reason]
         );
         res.json({ success: true, message: 'Report submitted successfully' });
@@ -2576,7 +2562,7 @@ app.post('/api/social/report', authenticateToken, async (req, res) => {
 
 app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
     try {
-        const result = await pool.query('SELECT user_id, username, email, is_admin, is_super_admin, banned_until FROM users ORDER BY user_id DESC');
+        const result = await pool.query('select user_id, username, email, is_admin, is_super_admin, banned_until from users order by user_id desc');
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -2586,32 +2572,32 @@ app.get('/api/admin/users', authenticateAdmin, async (req, res) => {
 app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        const target = await pool.query('SELECT is_admin, is_super_admin, email FROM users WHERE user_id = $1', [id]);
+        const target = await pool.query('select is_admin, is_super_admin, email from users where user_id = $1', [id]);
         if (target.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-        
+
         const targetUser = target.rows[0];
         if (targetUser.is_super_admin) {
             return res.status(403).json({ error: 'Cannot modify SuperAdmin.' });
         }
 
-        // Standard admins can't demote admins
+        // admin admin ke namaite parbe na
         if (targetUser.is_admin && !req.user.isSuperAdmin) {
             return res.status(403).json({ error: 'Only SuperAdmin can demote an Admin.' });
         }
-        
-        const result = await pool.query('UPDATE users SET is_admin = NOT is_admin WHERE user_id = $1 RETURNING is_admin, email', [id]);
+
+        const result = await pool.query('update users set is_admin = not is_admin where user_id = $1 returning is_admin, email', [id]);
         const newState = result.rows[0].is_admin;
-        
+
         await logAdminActivity(req.user.userId, newState ? 'MAKE_ADMIN' : 'REVOKE_ADMIN', 'users', id, `Changed admin status to ${newState} for ${result.rows[0].email}`);
-        
-        // Notify user
-        const adminRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [req.user.userId]);
+
+        // user notify
+        const adminRes = await pool.query('select username from users where user_id = $1', [req.user.userId]);
         const adminName = adminRes.rows[0].username;
-        const message = newState 
-            ? `Administrator ${adminName} has promoted you to a role with Administrator privileges. Welcome to the team!` 
+        const message = newState
+            ? `Administrator ${adminName} has promoted you to a role with Administrator privileges. Welcome to the team!`
             : `Your Administrator privileges have been revoked by ${adminName}. If you have questions, please contact the SuperAdmin.`;
         await createNotification(id, req.user.userId, 'SYSTEM', message);
-        
+
         res.json({ success: true, is_admin: newState });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -2620,21 +2606,20 @@ app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
 
 app.put('/api/admin/users/:id/ban', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
-    const { durationMs, reason } = req.body; 
+    const { durationMs, reason } = req.body;
     try {
-        const target = await pool.query('SELECT is_admin, email, banned_until FROM users WHERE user_id = $1', [id]);
+        const target = await pool.query('select is_admin, email, banned_until from users where user_id = $1', [id]);
         if (target.rows.length === 0) return res.status(404).json({ error: 'User not found' });
-        
+
         const targetUser = target.rows[0];
-        
-        // Don't let standard admins ban other admins
+
+        // standard admins ban admin parbe na
         if (targetUser.is_admin && !req.user.isSuperAdmin) {
             return res.status(403).json({ error: 'Only SuperAdmin can ban an Admin.' });
         }
 
-        // Toggle logic
         const currentlyBanned = targetUser.banned_until && new Date(targetUser.banned_until) > new Date();
-        
+
         let banUntil = null;
         let action = 'UNBAN_USER';
         let detailMsg = `Unbanned user ${targetUser.email}`;
@@ -2651,20 +2636,20 @@ app.put('/api/admin/users/:id/ban', authenticateAdmin, async (req, res) => {
             detailMsg = `Banned user ${targetUser.email} for: ${pDuration}. Reason: ${reason || 'Not specified'}`;
         }
 
-        await pool.query('UPDATE users SET banned_until = $1 WHERE user_id = $2', [banUntil, id]);
+        await pool.query('update users set banned_until = $1 where user_id = $2', [banUntil, id]);
         await logAdminActivity(req.user.userId, action, 'users', id, detailMsg);
-        
+
         // Notify user
-        const adminRes = await pool.query('SELECT username FROM users WHERE user_id = $1', [req.user.userId]);
+        const adminRes = await pool.query('select username from users where user_id = $1', [req.user.userId]);
         const adminName = adminRes.rows[0].username;
-        
+
         if (!currentlyBanned) {
             const reasonMsg = reason ? ` Reason: ${reason}` : ' Policy violation.';
             await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been banned by ${adminName}.${reasonMsg}`);
         } else {
             await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been unbanned by ${adminName}. Welcome back!`);
         }
-        
+
         res.json({ success: true, banned_until: banUntil });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -2674,17 +2659,17 @@ app.put('/api/admin/users/:id/ban', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/movies', authenticateAdmin, async (req, res) => {
     const { tmdb_id, title, original_title, overview, release_date, poster_path, backdrop_path, popularity, vote_average, vote_count, original_language } = req.body;
     try {
-        const check = await pool.query('SELECT tmdb_id FROM movies WHERE tmdb_id = $1', [tmdb_id]);
+        const check = await pool.query('select tmdb_id from movies where tmdb_id = $1', [tmdb_id]);
         if (check.rows.length > 0) {
             await pool.query(
-                `UPDATE movies SET title = $2, original_title = $3, overview = $4, release_date = $5, poster_path = $6, backdrop_path = $7, popularity = $8, vote_average = $9, vote_count = $10, tmdb_vote_average = $9, tmdb_vote_count = $10, original_language = $11 WHERE tmdb_id = $1`,
+                `update movies set title = $2, original_title = $3, overview = $4, release_date = $5, poster_path = $6, backdrop_path = $7, popularity = $8, vote_average = $9, vote_count = $10, tmdb_vote_average = $9, tmdb_vote_count = $10, original_language = $11 where tmdb_id = $1`,
                 [tmdb_id, title, original_title, overview, release_date || null, poster_path, backdrop_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         } else {
             await pool.query(
-                `INSERT INTO movies 
+                `insert into movies 
                 (tmdb_id, title, original_title, overview, release_date, poster_path, backdrop_path, popularity, vote_average, vote_count, tmdb_vote_average, tmdb_vote_count, original_language, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $10, $11, NOW())`,
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $9, $10, $11, now())`,
                 [tmdb_id, title, original_title, overview, release_date || null, poster_path, backdrop_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         }
@@ -2698,17 +2683,17 @@ app.post('/api/admin/movies', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/series', authenticateAdmin, async (req, res) => {
     const { tmdb_id, name, original_name, overview, first_air_date, poster_path, popularity, vote_average, vote_count, original_language } = req.body;
     try {
-        const check = await pool.query('SELECT tmdb_id FROM serieses WHERE tmdb_id = $1', [tmdb_id]);
+        const check = await pool.query('select tmdb_id from serieses where tmdb_id = $1', [tmdb_id]);
         if (check.rows.length > 0) {
             await pool.query(
-                `UPDATE serieses SET name = $2, original_name = $3, overview = $4, first_air_date = $5, poster_path = $6, popularity = $7, vote_average = $8, vote_count = $9, tmdb_vote_average = $8, tmdb_vote_count = $9, original_language = $10 WHERE tmdb_id = $1`,
+                `update serieses set name = $2, original_name = $3, overview = $4, first_air_date = $5, poster_path = $6, popularity = $7, vote_average = $8, vote_count = $9, tmdb_vote_average = $8, tmdb_vote_count = $9, original_language = $10 where tmdb_id = $1`,
                 [tmdb_id, name, original_name, overview, first_air_date || null, poster_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         } else {
             await pool.query(
-                `INSERT INTO serieses 
+                `insert into serieses 
                 (tmdb_id, name, original_name, overview, first_air_date, poster_path, popularity, vote_average, vote_count, tmdb_vote_average, tmdb_vote_count, original_language)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $8, $9, $10)`,
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $8, $9, $10)`,
                 [tmdb_id, name, original_name, overview, first_air_date || null, poster_path, popularity || 0, vote_average || 0, vote_count || 0, original_language || 'en']
             );
         }
@@ -2722,17 +2707,17 @@ app.post('/api/admin/series', authenticateAdmin, async (req, res) => {
 app.post('/api/admin/people', authenticateAdmin, async (req, res) => {
     const { id, name, biography, profile_path, popularity, gender, place_of_birth, birthday, known_for_department } = req.body;
     try {
-        const check = await pool.query('SELECT id FROM people WHERE id = $1', [id]);
+        const check = await pool.query('select id from people where id = $1', [id]);
         if (check.rows.length > 0) {
             await pool.query(
-                `UPDATE people SET name = $2, biography = $3, profile_path = $4, popularity = $5, gender = $6, place_of_birth = $7, birthday = $8, known_for_department = $9 WHERE id = $1`,
+                `update people set name = $2, biography = $3, profile_path = $4, popularity = $5, gender = $6, place_of_birth = $7, birthday = $8, known_for_department = $9 where id = $1`,
                 [id, name, biography, profile_path, popularity || 0, gender || 0, place_of_birth, birthday || null, known_for_department]
             );
         } else {
             await pool.query(
-                `INSERT INTO people 
+                `insert into people 
                 (id, name, biography, profile_path, popularity, gender, place_of_birth, birthday, known_for_department)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+                values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
                 [id, name, biography, profile_path, popularity || 0, gender || 0, place_of_birth, birthday || null, known_for_department]
             );
         }
@@ -2746,14 +2731,14 @@ app.post('/api/admin/people', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/posts/:id', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        // Fetch author before deleting
-        const post = await pool.query('SELECT user_id, content FROM social_posts WHERE post_id = $1', [id]);
+        // delete korar age oke ber kora
+        const post = await pool.query('select user_id, content from social_posts where post_id = $1', [id]);
         if (post.rows.length > 0) {
             const authorId = post.rows[0].user_id;
             const preview = post.rows[0].content.substring(0, 30) + '...';
             await createNotification(authorId, req.user.userId, 'SYSTEM', `An administrator has removed your post: "${preview}" for violating community standards.`);
         }
-        await pool.query('DELETE FROM social_posts WHERE post_id = $1', [id]);
+        await pool.query('delete from social_posts where post_id = $1', [id]);
         await logAdminActivity(req.user.userId, 'DELETE_POST', 'social_posts', id, `Deleted post ${id}`);
         res.json({ success: true });
     } catch (err) {
@@ -2764,14 +2749,14 @@ app.delete('/api/admin/posts/:id', authenticateAdmin, async (req, res) => {
 app.delete('/api/admin/comments/:id', authenticateAdmin, async (req, res) => {
     const { id } = req.params;
     try {
-        // Fetch author before deleting
-        const comment = await pool.query('SELECT user_id, content FROM post_comments WHERE comment_id = $1', [id]);
+        // oi delete er age ber korlam
+        const comment = await pool.query('select user_id, content from post_comments where comment_id = $1', [id]);
         if (comment.rows.length > 0) {
             const authorId = comment.rows[0].user_id;
             const preview = comment.rows[0].content.substring(0, 30) + '...';
             await createNotification(authorId, req.user.userId, 'SYSTEM', `An administrator has removed your comment: "${preview}" for violating community standards.`);
         }
-        await pool.query('DELETE FROM post_comments WHERE comment_id = $1', [id]);
+        await pool.query('delete from post_comments where comment_id = $1', [id]);
         await logAdminActivity(req.user.userId, 'DELETE_COMMENT', 'post_comments', id, `Deleted comment ${id}`);
         res.json({ success: true });
     } catch (err) {
@@ -2782,10 +2767,10 @@ app.delete('/api/admin/comments/:id', authenticateAdmin, async (req, res) => {
 app.get('/api/admin/logs', authenticateAdmin, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT a.*, u.username, u.email 
-            FROM admin_activity_logs a
-            LEFT JOIN users u ON u.user_id = a.admin_id
-            ORDER BY a.created_at DESC LIMIT 100
+            select a.*, u.username, u.email 
+            from admin_activity_logs a
+            left join users u on u.user_id = a.admin_id
+            order by a.created_at desc limit 100
         `);
         res.json(result.rows);
     } catch (err) {
@@ -2796,19 +2781,19 @@ app.get('/api/admin/logs', authenticateAdmin, async (req, res) => {
 app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT r.*, 
+            select r.*, 
                    u.username as reporter_username,
                    p.content as post_content,
                    c.content as comment_content,
                    p_user.username as post_author,
                    c_user.username as comment_author
-            FROM reports r
-            JOIN users u ON u.user_id = r.reporter_id
-            LEFT JOIN social_posts p ON p.post_id = r.post_id
-            LEFT JOIN post_comments c ON c.comment_id = r.comment_id
-            LEFT JOIN users p_user ON p_user.user_id = p.user_id
-            LEFT JOIN users c_user ON c_user.user_id = c.user_id
-            ORDER BY r.created_at DESC
+            from reports r
+            join users u on u.user_id = r.reporter_id
+            left join social_posts p on p.post_id = r.post_id
+            left join post_comments c on c.comment_id = r.comment_id
+            left join users p_user on p_user.user_id = p.user_id
+            left join users c_user on c_user.user_id = c.user_id
+            order by r.created_at desc
         `);
         res.json(result.rows);
     } catch (err) {
@@ -2816,16 +2801,16 @@ app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
     }
 });
 
-// GET Movie Cast (Local + TMDB fallback)
+// movie cast
 app.get('/api/series/:id/season/:season_number/episodes', async (req, res) => {
     const { id, season_number } = req.params;
     try {
-        // 1. Check local DB (series_id is the TMDB ID of the series from 'serieses' table)
+        // local DB
         const localEpisodes = await pool.query(
-            `SELECT episode_id, series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count
-             FROM episodes 
-             WHERE series_id = $1 AND season_number = $2
-             ORDER BY episode_number ASC`,
+            `select episode_id, series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count
+             from episodes 
+             where series_id = $1 and season_number = $2
+             order by episode_number asc`,
             [id, season_number]
         );
 
@@ -2834,35 +2819,35 @@ app.get('/api/series/:id/season/:season_number/episodes', async (req, res) => {
             return res.json(localEpisodes.rows);
         }
 
-        // 2. Fallback to TMDB
+        // naile tmdb
         console.log(`[Episodes] Fetching episodes from TMDB for Series ${id} S${season_number}`);
         const TMDB_API_KEY = process.env.TMDB_API_KEY || 'ffb76769eee5be098b949fd3877a9d0b';
         const tmdbRes = await fetch(`https://api.themoviedb.org/3/tv/${id}/season/${season_number}?api_key=${TMDB_API_KEY}`);
-        
+
         if (tmdbRes.ok) {
             const data = await tmdbRes.json();
             const episodes = data.episodes || [];
-            
-            // 3. Transform and Save (Upsert) to Local DB
+
+            //local e dhukai dilam ei fake
             const savedEpisodes = [];
             for (const ep of episodes) {
                 try {
                     const result = await pool.query(
-                        `INSERT INTO episodes (series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count)
-                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                         ON CONFLICT (series_id, season_number, episode_number) DO UPDATE 
-                         SET name = EXCLUDED.name, overview = EXCLUDED.overview, still_path = EXCLUDED.still_path, 
-                             vote_average = EXCLUDED.vote_average, vote_count = EXCLUDED.vote_count
-                         RETURNING *`,
+                        `insert into episodes (series_id, season_number, episode_number, name, overview, air_date, still_path, vote_average, vote_count)
+                         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                         on conflict (series_id, season_number, episode_number) DO update 
+                         set name = excluded.name, overview = excluded.overview, still_path = excluded.still_path, 
+                             vote_average = excluded.vote_average, vote_count = excluded.vote_count
+                         returning *`,
                         [
-                            id, 
-                            season_number, 
-                            ep.episode_number, 
-                            ep.name, 
-                            ep.overview, 
-                            ep.air_date || null, 
-                            ep.still_path, 
-                            ep.vote_average, 
+                            id,
+                            season_number,
+                            ep.episode_number,
+                            ep.name,
+                            ep.overview,
+                            ep.air_date || null,
+                            ep.still_path,
+                            ep.vote_average,
                             ep.vote_count
                         ]
                     );
@@ -2884,32 +2869,32 @@ app.get('/api/series/:id/season/:season_number/episodes', async (req, res) => {
 app.get('/api/movies/:id/cast', async (req, res) => {
     const movieId = req.params.id;
     try {
-        // Try local DB first
+        // age local
         const localCast = await pool.query(`
-            SELECT p.id, p.name, p.profile_path, mc.character, mc.cast_order
-            FROM movie_cast mc
-            JOIN people p ON mc.person_id = p.id
-            WHERE mc.movie_id = $1
-            ORDER BY mc.cast_order ASC
+            select p.id, p.name, p.profile_path, mc.character, mc.cast_order
+            from movie_cast mc
+            join people p on mc.person_id = p.id
+            where mc.movie_id = $1
+            order by mc.cast_order asc
         `, [movieId]);
 
         if (localCast.rows.length > 0) {
             return res.json(localCast.rows);
         }
 
-        // Fallback to TMDB
-        const tmdbIdRes = await pool.query('SELECT tmdb_id FROM movies WHERE id = $1', [movieId]);
+        // naile tmdb
+        const tmdbIdRes = await pool.query('select tmdb_id from movies where id = $1', [movieId]);
         if (tmdbIdRes.rows.length > 0) {
             const tmdbId = tmdbIdRes.rows[0].tmdb_id;
             const TMDB_API_KEY = process.env.TMDB_API_KEY || 'ffb76769eee5be098b949fd3877a9d0b';
             const castRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}/credits?api_key=${TMDB_API_KEY}`);
             if (castRes.ok) {
                 const data = await castRes.json();
-                const rawCast = data.cast.slice(0, 15); // Top 15 members
-                
-                // USER RULE: Only show people that exist in our 'people' table
+                const rawCast = data.cast.slice(0, 15); // top 15
+
+                //people table e na thakle na dekhailam
                 const personIds = rawCast.map(c => c.id);
-                const localPeopleRes = await pool.query('SELECT id, name, profile_path FROM people WHERE id = ANY($1)', [personIds]);
+                const localPeopleRes = await pool.query('select id, name, profile_path from people where id = any($1)', [personIds]);
                 const localPeopleMap = new Map(localPeopleRes.rows.map(p => [p.id, p]));
 
                 const filteredCast = rawCast
@@ -2919,7 +2904,7 @@ app.get('/api/movies/:id/cast', async (req, res) => {
                         character: c.character,
                         cast_order: c.order
                     }));
-                
+
                 return res.json(filteredCast);
             }
         }
@@ -2936,30 +2921,27 @@ app.get('/api/admin/content/search', authenticateAdmin, async (req, res) => {
     if (!query) return res.json([]);
     try {
         const posts = await pool.query(
-            `SELECT p.post_id as id, p.content, p.created_at, u.username, 'post' as type 
-             FROM social_posts p JOIN users u ON u.user_id = p.user_id 
-             WHERE p.content ILIKE $1 ORDER BY p.created_at DESC LIMIT 50`,
+            `select p.post_id as id, p.content, p.created_at, u.username, 'post' as type 
+             from social_posts p join users u on u.user_id = p.user_id 
+             where p.content ilike $1 order by p.created_at desc limit 50`,
             [`%${query}%`]
         );
         const comments = await pool.query(
-            `SELECT c.comment_id as id, c.content, c.created_at, u.username, 'comment' as type
-             FROM post_comments c JOIN users u ON u.user_id = c.user_id
-             WHERE c.content ILIKE $1 ORDER BY c.created_at DESC LIMIT 50`,
+            `select c.comment_id as id, c.content, c.created_at, u.username, 'comment' as type
+             from post_comments c join users u on u.user_id = c.user_id
+             where c.content ilike $1 order by c.created_at desc limit 50`,
             [`%${query}%`]
         );
-        res.json([...posts.rows, ...comments.rows].sort((a,b) => new Date(b.created_at) - new Date(a.created_at)));
+        res.json([...posts.rows, ...comments.rows].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)));
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
 
-// ==========================================
-// SOCKET.IO REAL-TIME CHAT
-// ==========================================
+//chat
 io.on('connection', (socket) => {
     console.log('A user connected via WebSocket:', socket.id);
 
-    // Auth & Room joining
     socket.on('join_user', (userId) => {
         if (userId) socket.join(`user_${userId}`);
     });
@@ -2968,22 +2950,20 @@ io.on('connection', (socket) => {
         if (discussionId) socket.join(`discussion_${discussionId}`);
     });
 
-    // Chat handling
     socket.on('send_dm', async (data) => {
-        // data: { sender_id, receiver_id, message }
         try {
             const res = await pool.query(
-                'INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES ($1, $2, $3) RETURNING *',
+                'insert into direct_messages (sender_id, receiver_id, message) values ($1, $2, $3) returning *',
                 [data.sender_id, data.receiver_id, data.message]
             );
             const msg = res.rows[0];
-            // Broadcast to the receiver and sender so both UI updates instantly
+            // receiver and sender 
             io.to(`user_${data.receiver_id}`).emit('receive_dm', msg);
             io.to(`user_${data.sender_id}`).emit('receive_dm', msg);
 
-            // Notify receiver of new message count
+            // Notification
             const unreadRes = await pool.query(
-                'SELECT COUNT(*)::int AS total FROM direct_messages WHERE receiver_id = $1 AND read_at IS NULL',
+                'select count(*)::int as total from direct_messages where receiver_id = $1 and read_at is null',
                 [data.receiver_id]
             );
             io.to(`user_${data.receiver_id}`).emit('unread_update', { unreadCount: unreadRes.rows[0].total });
@@ -2993,21 +2973,19 @@ io.on('connection', (socket) => {
     });
 
     socket.on('send_discussion_msg', async (data) => {
-        // data: { discussion_id, sender_id, message }
         try {
-            // First check if user is in participant list or if it's public
-            const discussionRes = await pool.query('SELECT access_level FROM discussions WHERE id = $1', [data.discussion_id]);
+            // public naki
+            const discussionRes = await pool.query('select access_level from discussions where id = $1', [data.discussion_id]);
             if (discussionRes.rows.length === 0) return;
-            // Simplified for now - assume they have access to send if they are physically there
 
             const res = await pool.query(
-                `INSERT INTO discussion_messages (discussion_id, sender_id, message) VALUES ($1, $2, $3) RETURNING *`,
+                `insert into discussion_messages (discussion_id, sender_id, message) values ($1, $2, $3) returning *`,
                 [data.discussion_id, data.sender_id, data.message]
             );
             const msg = res.rows[0];
 
-            // fetch sender details for ui
-            const userRes = await pool.query('SELECT username, profile_picture FROM users WHERE user_id = $1', [data.sender_id]);
+            // ui e chehara dekhanor jonno
+            const userRes = await pool.query('select username, profile_picture from users where user_id = $1', [data.sender_id]);
             if (userRes.rows.length > 0) {
                 msg.sender_username = userRes.rows[0].username;
                 msg.sender_picture = userRes.rows[0].profile_picture;
@@ -3024,13 +3002,11 @@ io.on('connection', (socket) => {
     });
 });
 
-// ==========================================
-// ACTOR & FAVOURITE PEOPLE ROUTES
-// ==========================================
+//actor tactor
 
 app.get('/api/person/:id', async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM people WHERE id = $1', [req.params.id]);
+        const result = await pool.query('select * from people where id = $1', [req.params.id]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Person not found' });
         const person = result.rows[0];
 
@@ -3042,7 +3018,7 @@ app.get('/api/person/:id', async (req, res) => {
                 const jwt = require('jsonwebtoken');
                 const decoded = jwt.verify(token, process.env.JWT_SECRET);
                 const followCheck = await pool.query(
-                    'SELECT 1 FROM favourite_people WHERE user_id = $1 AND person_id = $2 LIMIT 1',
+                    'select 1 from favourite_people where user_id = $1 and person_id = $2 limit 1',
                     [decoded.userId, req.params.id]
                 );
                 person.is_following = followCheck.rows.length > 0;
@@ -3062,11 +3038,11 @@ app.get('/api/person/:id', async (req, res) => {
 app.get('/api/person/:id/movies', async (req, res) => {
     try {
         const result = await pool.query(`
-            SELECT m.*, mc.character 
-            FROM movies m 
-            JOIN movie_cast mc ON m.id = mc.movie_id 
-            WHERE mc.person_id = $1 
-            ORDER BY m.popularity DESC NULLS LAST
+            select m.*, mc.character 
+            from movies m 
+            join movie_cast mc on m.id = mc.movie_id 
+            where mc.person_id = $1 
+            order by m.popularity desc nulls last
         `, [req.params.id]);
         res.json(result.rows);
     } catch (err) {
@@ -3079,14 +3055,14 @@ app.post('/api/people/:id/follow', authenticateToken, async (req, res) => {
         const userId = req.user.userId;
         const personId = req.params.id;
         const { person_name, person_role, profile_path } = req.body;
-        
-        const check = await pool.query('SELECT * FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+
+        const check = await pool.query('select * from favourite_people where user_id = $1 and person_id = $2', [userId, personId]);
         if (check.rows.length > 0) {
-            await pool.query('DELETE FROM favourite_people WHERE user_id = $1 AND person_id = $2', [userId, personId]);
+            await pool.query('delete from favourite_people where user_id = $1 and person_id = $2', [userId, personId]);
             return res.json({ status: 'unfollowed', following: false });
         } else {
             await pool.query(
-                'INSERT INTO favourite_people (user_id, person_id, person_name, person_role, profile_path, created_at) VALUES ($1, $2, $3, $4, $5, NOW())',
+                'insert into favourite_people (user_id, person_id, person_name, person_role, profile_path, created_at) values ($1, $2, $3, $4, $5, now())',
                 [userId, personId, person_name || 'Artist', person_role || 'Actor', profile_path || null]
             );
             return res.json({ status: 'followed', following: true });
@@ -3096,13 +3072,13 @@ app.post('/api/people/:id/follow', authenticateToken, async (req, res) => {
     }
 });
 
-// Dedicated endpoint to check if user follows a specific person
+// user follow status
 app.get('/api/people/:id/follow-status', authenticateToken, async (req, res) => {
     try {
         const userId = req.user.userId;
         const personId = req.params.id;
         const result = await pool.query(
-            'SELECT 1 FROM favourite_people WHERE user_id = $1 AND person_id = $2 LIMIT 1',
+            'select 1 from favourite_people where user_id = $1 and person_id = $2 limit 1',
             [userId, personId]
         );
         res.json({ following: result.rows.length > 0 });
@@ -3113,7 +3089,7 @@ app.get('/api/people/:id/follow-status', authenticateToken, async (req, res) => 
 
 app.get('/api/profile/favourite-people', authenticateToken, async (req, res) => {
     try {
-        const result = await pool.query('SELECT * FROM favourite_people WHERE user_id = $1 ORDER BY created_at DESC', [req.user.userId]);
+        const result = await pool.query('select * from favourite_people where user_id = $1 order by created_at desc', [req.user.userId]);
         res.json(result.rows);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -3125,12 +3101,12 @@ app.get('/api/browse/favorite-people-movies', optionalAuthenticate, async (req, 
         const userId = req.user ? req.user.userId : null;
         if (!userId) return res.json([]);
         const result = await pool.query(`
-            SELECT DISTINCT m.*
-            FROM movies m
-            JOIN movie_cast mc ON m.id = mc.movie_id
-            JOIN favourite_people f ON mc.person_id = f.person_id
-            WHERE f.user_id = $1
-            ORDER BY m.popularity DESC NULLS LAST LIMIT 20
+            select distinct m.*
+            from movies m
+            join movie_cast mc on m.id = mc.movie_id
+            join favourite_people f on mc.person_id = f.person_id
+            where f.user_id = $1
+            order by m.popularity desc nulls last limit 20
         `, [userId]);
         res.json(result.rows);
     } catch (err) {
