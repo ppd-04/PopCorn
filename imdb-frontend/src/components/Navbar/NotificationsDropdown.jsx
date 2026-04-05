@@ -28,7 +28,7 @@ function NotificationsDropdown({ theme }) {
 
     useEffect(() => {
         fetchNotifications();
-        
+
         // Real-time support via Socket.io
         const socket = io('http://localhost:5000');
         const userData = localStorage.getItem('user');
@@ -36,14 +36,14 @@ function NotificationsDropdown({ theme }) {
             const user = JSON.parse(userData);
             const userId = user.id || user.user_id;
             socket.emit('join_discussion', `user_${userId}`); // reusing join for private room
-            
+
             socket.on('new_notification', (notif) => {
                 console.log("New notification received via socket:", notif);
                 setNotifications(prev => [notif, ...prev]);
             });
         }
 
-        const interval = setInterval(fetchNotifications, 60000); // Poll less frequently now with sockets
+        const interval = setInterval(fetchNotifications, 60000);
         return () => {
             clearInterval(interval);
             socket.disconnect();
@@ -82,12 +82,12 @@ function NotificationsDropdown({ theme }) {
             const base = 'http://localhost:5000/api';
             const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
             const url = `${base}/friends/${action}/${senderId}`;
-            
+
             const res = await fetch(url, { method: 'POST', headers });
             if (res.ok) {
-                // remove or mark read the notification
+                // remove or mark notif
                 markAsRead(notifId);
-                // Refresh list quickly
+                // Refresh list
                 fetchNotifications();
             }
         } catch (err) {
@@ -99,9 +99,9 @@ function NotificationsDropdown({ theme }) {
 
     return (
         <div className="nav-notifications" ref={dropdownRef} style={{ position: 'relative' }}>
-            <span 
-                className="nav-link" 
-                onClick={() => setIsOpen(!isOpen)} 
+            <span
+                className="nav-link"
+                onClick={() => setIsOpen(!isOpen)}
                 style={{ cursor: 'pointer', position: 'relative' }}
             >
                 🔔
@@ -123,7 +123,7 @@ function NotificationsDropdown({ theme }) {
             </span>
 
             {isOpen && (
-                <div 
+                <div
                     className={`notifications-dropdown ${theme || 'dark'}`}
                     style={{
                         position: 'absolute',
@@ -144,35 +144,35 @@ function NotificationsDropdown({ theme }) {
                     }}
                 >
                     <h3 style={{ margin: '0 0 15px 0', borderBottom: '1px solid var(--border-color)', paddingBottom: '10px' }}>Notifications</h3>
-                    
+
                     {notifications.length === 0 ? (
                         <p style={{ margin: 0, opacity: 0.6, textAlign: 'center' }}>No notifications yet.</p>
                     ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                             {notifications.map(n => (
-                                <div key={n.id} style={{ 
-                                    padding: '10px', 
+                                <div key={n.id} style={{
+                                    padding: '10px',
                                     backgroundColor: n.is_read ? 'transparent' : 'rgba(255, 255, 255, 0.05)',
                                     borderRadius: '8px',
                                     display: 'flex',
                                     gap: '10px'
                                 }}>
                                     {n.sender_picture ? (
-                                        <img 
-                                            src={n.sender_picture} 
-                                            alt="Avatar" 
+                                        <img
+                                            src={n.sender_picture}
+                                            alt="Avatar"
                                             style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                                         />
                                     ) : (
-                                        <div style={{ 
-                                            width: '40px', 
-                                            height: '40px', 
-                                            borderRadius: '50%', 
-                                            backgroundColor: '#f5c518', 
-                                            color: '#000', 
-                                            display: 'flex', 
-                                            alignItems: 'center', 
-                                            justifyContent: 'center', 
+                                        <div style={{
+                                            width: '40px',
+                                            height: '40px',
+                                            borderRadius: '50%',
+                                            backgroundColor: '#f5c518',
+                                            color: '#000',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
                                             fontWeight: 'bold',
                                             fontSize: '18px',
                                             flexShrink: 0
@@ -183,16 +183,16 @@ function NotificationsDropdown({ theme }) {
                                     <div style={{ flex: 1, fontSize: '14px' }}>
                                         <p style={{ margin: '0 0 5px 0' }}>{n.message}</p>
                                         <span style={{ fontSize: '11px', opacity: 0.5 }}>{new Date(n.created_at).toLocaleString()}</span>
-                                        
+
                                         {!n.is_read && n.type === 'friend_request' && (
                                             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                                                <button 
+                                                <button
                                                     style={{ padding: '6px 10px', fontSize: '12px', cursor: 'pointer', backgroundColor: '#007aff', color: 'white', border: 'none', borderRadius: '6px' }}
                                                     onClick={() => handleFriendAction('accept', n.sender_id, n.id)}
                                                 >
                                                     Accept
                                                 </button>
-                                                <button 
+                                                <button
                                                     style={{ padding: '6px 10px', fontSize: '12px', cursor: 'pointer', backgroundColor: 'transparent', color: 'var(--text-color)', border: '1px solid var(--border-color)', borderRadius: '6px' }}
                                                     onClick={() => handleFriendAction('reject', n.sender_id, n.id)}
                                                 >
@@ -202,7 +202,7 @@ function NotificationsDropdown({ theme }) {
                                         )}
                                     </div>
                                     {!n.is_read && n.type !== 'friend_request' && (
-                                        <button 
+                                        <button
                                             onClick={() => markAsRead(n.id)}
                                             style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: '#007aff', cursor: 'pointer', fontSize: '12px' }}
                                         >

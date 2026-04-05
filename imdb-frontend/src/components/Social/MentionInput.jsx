@@ -12,25 +12,20 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
   const editorRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Sync external value changes (like clearing) back to the contenteditable
   useEffect(() => {
     if (editorRef.current) {
         const currentHtml = editorRef.current.innerHTML;
-        // Convert the current HTML to markdown to compare with incoming value
         const currentMarkdown = htmlToMarkdown(currentHtml);
         if (value !== currentMarkdown) {
-            // Only update if they differ (e.g. initial load or reset)
             editorRef.current.innerHTML = markdownToHtml(value);
         }
     }
   }, [value]);
 
-  // Helper: Convert HTML with bubbles to markdown structured format
   const htmlToMarkdown = (html) => {
     const temp = document.createElement('div');
     temp.innerHTML = html;
     
-    // Replace bubbles with @[Title](type:id)
     temp.querySelectorAll('.mention-editor-bubble').forEach(bubble => {
         const type = bubble.getAttribute('data-type');
         const id = bubble.getAttribute('data-id');
@@ -38,35 +33,29 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
         bubble.outerHTML = `@[${title}](${type}:${id})`;
     });
     
-    // Replace <br> and divs with newlines
     let text = temp.innerHTML
         .replace(/<br\s*\/?>/gi, '\n')
         .replace(/<div>/gi, '\n')
         .replace(/<\/div>/gi, '');
         
-    // Decode HTML entities
-    const doc = new Array(1); // placeholder
+    const doc = new Array(1); 
     const span = document.createElement('span');
     span.innerHTML = text;
     return span.textContent;
   };
 
-  // Helper: Convert markdown to HTML with bubbles
   const markdownToHtml = (markdown) => {
     if (!markdown) return '';
-    // Replace @[Title](type:id) with bubble spans
     return markdown.replace(/@\[([^\]]+)\]\((movie|series):(\d+)\)/g, (match, title, type, id) => {
         return `<span class="mention-editor-bubble" contenteditable="false" data-type="${type}" data-id="${id}">${title}</span>`;
     });
   };
 
-  // Handle Input (Detecting @ and updating parent)
   const handleInput = () => {
     const html = editorRef.current.innerHTML;
     const markdown = htmlToMarkdown(html);
     onChange(markdown);
 
-    // Get current selection/cursor info
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
     
@@ -86,7 +75,6 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
     setMentionQuery('');
   };
 
-  // Insert a bubble into the contenteditable at the cursor position
   const insertMention = (item) => {
     const selection = window.getSelection();
     if (!selection.rangeCount) return;
@@ -98,7 +86,6 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
     const textBefore = textNode.textContent.slice(0, offset);
     const lastAtIdx = textBefore.lastIndexOf('@');
     
-    // Remove the @query text
     const beforeTextNode = document.createTextNode(textBefore.slice(0, lastAtIdx));
     const afterTextNode = document.createTextNode(textNode.textContent.slice(offset));
     
@@ -113,10 +100,9 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
     parent.insertBefore(beforeTextNode, textNode);
     parent.insertBefore(bubble, textNode);
     parent.insertBefore(afterTextNode, textNode);
-    parent.insertBefore(document.createTextNode(' '), textNode); // Space after bubble
+    parent.insertBefore(document.createTextNode(' '), textNode); 
     parent.removeChild(textNode);
 
-    // Set cursor after the new space
     const newRange = document.createRange();
     newRange.setStartAfter(bubble.nextSibling);
     newRange.collapse(true);
@@ -125,11 +111,10 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
 
     setShowSuggestions(false);
     setSuggestions([]);
-    handleInput(); // Sync back to markdown
+    handleInput(); 
     editorRef.current.focus();
   };
 
-  // Fetch suggestions
   useEffect(() => {
     if (!showSuggestions) {
       setSuggestions([]);
@@ -152,7 +137,6 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
     return () => clearTimeout(timer);
   }, [mentionQuery, showSuggestions]);
 
-  // Handle keys (Arrows, Enter to select, and "Space to Resolve")
   const handleKeyDownInternal = async (e) => {
     if (showSuggestions && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
@@ -168,7 +152,6 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
       } else if (e.key === 'Escape') {
         setShowSuggestions(false);
       } else if (e.key === ' ') {
-        // Automatic resolution on Space
         e.preventDefault();
         insertMention(suggestions[activeIndex]);
         return;
@@ -176,14 +159,12 @@ const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) =>
     }
 
     if (e.key === 'Enter' && onKeyDown) {
-        // Allow parent to handle enter (e.g. submit) if suggestions are closed
         if (!showSuggestions) {
             onKeyDown(e);
         }
     }
   };
 
-  // Orientation Check
   useEffect(() => {
     if (showSuggestions && suggestions.length > 0 && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();

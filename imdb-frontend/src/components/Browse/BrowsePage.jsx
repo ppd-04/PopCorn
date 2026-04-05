@@ -19,7 +19,7 @@ const BrowsePage = ({ user }) => {
   const spotlightTimerRef = useRef(null);
   const aiCarouselTimerRef = useRef(null);
 
-  // Utility to shuffle array
+  // shuffle array
   const shuffleArray = (array) => {
     const newArr = [...array];
     for (let i = newArr.length - 1; i > 0; i--) {
@@ -51,7 +51,7 @@ const BrowsePage = ({ user }) => {
     }
   }, [user]);
 
-  // Fetch Data
+  // Data neya
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -60,7 +60,7 @@ const BrowsePage = ({ user }) => {
         const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
         const timestamp = Date.now();
 
-        // Trending: Get 50, shuffle, take 15 for rows, first 5 of those for spotlight
+        // Trendin 50 thke 15 shuffled niye then 5ta dekhai
         const trendRes = await fetch(`http://localhost:5000/api/browse/trending?t=${timestamp}`);
         if (trendRes.ok) {
           const data = await trendRes.json();
@@ -69,7 +69,7 @@ const BrowsePage = ({ user }) => {
           setTrending(shuffled);
         }
 
-        // Collaborative: Always fetch, shuffle for variety
+        // Collaborative shuffle 
         const collabRes = await fetch(`http://localhost:5000/api/browse/collaborative?t=${timestamp}`, { headers });
         if (collabRes.ok) {
           const data = await collabRes.json();
@@ -77,7 +77,7 @@ const BrowsePage = ({ user }) => {
           setCollaborative(shuffleArray(data));
         }
 
-        // For You: Always fetch, shuffle for variety
+        // For You shuffle
         const foryouRes = await fetch(`http://localhost:5000/api/browse/foryou?t=${timestamp}`, { headers });
         if (foryouRes.ok) {
           const data = await foryouRes.json();
@@ -94,7 +94,7 @@ const BrowsePage = ({ user }) => {
           }
         }
 
-        // Because You Liked: Anchor-based recs
+        // Because you liked ektar basis e
         const relatedRes = await fetch(`http://localhost:5000/api/browse/related?t=${timestamp}`, { headers });
         if (relatedRes.ok) {
           const data = await relatedRes.json();
@@ -109,7 +109,7 @@ const BrowsePage = ({ user }) => {
         } else {
           console.error('[Browse] Related API fetch failed');
         }
-        // AI Personalized: New Gemini-driven row
+        // AI er ta
         fetchAiRecs();
 
       } catch (error) {
@@ -121,7 +121,7 @@ const BrowsePage = ({ user }) => {
     fetchData();
   }, [user, fetchAiRecs]);
 
-  // Auto-scroll Hero Carousel with restart logic on manual change
+  // Autoscroll
   useEffect(() => {
     const startTimer = () => {
       if (trending.length > 0) {
@@ -137,7 +137,7 @@ const BrowsePage = ({ user }) => {
     };
   }, [trending]);
 
-  // Auto-scroll AI Carousel
+  // Auto-scroll ai
   useEffect(() => {
     if (aiRecs.length === 0) return;
     if (aiCarouselTimerRef.current) clearInterval(aiCarouselTimerRef.current);
@@ -159,7 +159,6 @@ const BrowsePage = ({ user }) => {
 
   const handleIndicatorClick = (idx) => {
     setCurrentSlide(idx);
-    // Restart interval on manual click
     if (spotlightTimerRef.current) clearInterval(spotlightTimerRef.current);
     spotlightTimerRef.current = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % Math.min(5, trending.length));
@@ -179,7 +178,7 @@ const BrowsePage = ({ user }) => {
 
   return (
     <div className="browse-page-container">
-      {/* 1. Enhanced Spotlight Hero Section (Random 5) */}
+      {/* 1. sptlight random 5*/}
       {spotlightMovie && (
         <section className="spotlight-section">
           {trending.slice(0, 5).map((movie, idx) => (
@@ -236,7 +235,7 @@ const BrowsePage = ({ user }) => {
 
       <div className="browse-main-content">
 
-        {/* Row 0: AI Personalized — Cinematic Carousel */}
+        {/* AI erta */}
         {aiRecs.length > 0 && (
           <div className="ai-carousel-section">
 
@@ -329,11 +328,11 @@ const BrowsePage = ({ user }) => {
           </div>
         )}
 
-        {/* Row 0.5: From Your Favourite People */}
+        {/* favorite people */}
         {favoritePeopleMovies.length > 0 && (
           <div className="recommendation-row">
             <div className="row-header">
-              <h2 className="row-title" style={{color: '#f5c518'}}>⭐ From Your Favourite People</h2>
+              <h2 className="row-title" style={{ color: '#f5c518' }}>⭐ From Your Favourite People</h2>
               <div className="row-line"></div>
             </div>
             <div className="horizontal-slider">
@@ -359,7 +358,7 @@ const BrowsePage = ({ user }) => {
           </div>
         )}
 
-        {/* Row 1: Curated For You */}
+        {/* 1 For You */}
         {foryou.length > 0 && (
           <div className="recommendation-row">
             <div className="row-header">
@@ -389,7 +388,7 @@ const BrowsePage = ({ user }) => {
           </div>
         )}
 
-        {/* Row 2: Because You Liked (Anchor-based) */}
+        {/* 2 beause you liked */}
         {related.length > 0 && (
           <div className="recommendation-row">
             <div className="row-header">
@@ -419,7 +418,7 @@ const BrowsePage = ({ user }) => {
           </div>
         )}
 
-        {/* Row 2: Similar Minds Picked */}
+        {/* Similar minds */}
         {collaborative.length > 0 && (
           <div className="recommendation-row">
             <div className="row-header">
@@ -449,7 +448,7 @@ const BrowsePage = ({ user }) => {
           </div>
         )}
 
-        {/* Global Hits / Trending */}
+        {/*trending*/}
         {trending.length > 0 && (
           <div className="recommendation-row">
             <div className="row-header">

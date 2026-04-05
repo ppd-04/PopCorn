@@ -39,9 +39,6 @@ function authHeaders() {
         : { 'Content-Type': 'application/json' };
 }
 
-// ─────────────────────────────────────────────────────
-// MAIN SOCIAL FEED
-// ─────────────────────────────────────────────────────
 function SocialFeed({ user }) {
     const [posts, setPosts]                     = useState([]);
     const [loading, setLoading]                 = useState(true);
@@ -54,7 +51,6 @@ function SocialFeed({ user }) {
 
     const navigate = useNavigate();
 
-    // Helper to update background based on post content
     const updateBackground = useCallback(async (content) => {
         const mention = getFirstMention(content);
         if (mention) {
@@ -75,7 +71,6 @@ function SocialFeed({ user }) {
                 const data = await res.json();
                 setPosts(data);
                 
-                // Set initial background from first mention found in feed
                 for (let p of data) {
                     const m = getFirstMention(p.content);
                     if (m) {
@@ -92,7 +87,7 @@ function SocialFeed({ user }) {
         try {
             const res = await fetch(`${API_BASE}/discussions/feed`, { headers: authHeaders() });
             if (res.ok) setDiscussions(await res.json());
-        } catch (err) { /* silent */ }
+        } catch (err) { }
     }, []);
 
     const fetchUserStats = useCallback(async () => {
@@ -104,14 +99,14 @@ function SocialFeed({ user }) {
                 setUserStats(data);
                 setUserInterests(data.interests || []);
             }
-        } catch (err) { /* silent */ }
+        } catch (err) { }
     }, [user]);
 
     const fetchCommunityStats = useCallback(async () => {
         try {
             const res = await fetch(`${API_BASE}/social/community-stats`);
             if (res.ok) setCommunityStats(await res.json());
-        } catch (err) { /* silent */ }
+        } catch (err) { }
     }, []);
 
     useEffect(() => {
@@ -135,7 +130,6 @@ function SocialFeed({ user }) {
             <CinemaBackground posterPath={activePoster} />
             <div className="social-container-main">
 
-                {/* ══ LEFT COLUMN ══ */}
                 <div className="social-left-col">
 
                     {/* User Profile Card */}
@@ -168,7 +162,6 @@ function SocialFeed({ user }) {
                         </div>
                     )}
 
-                    {/* Genre Mood */}
                     {user && (
                         <div className="genre-mood-section">
                             <h3>🎭 Your Genres</h3>
@@ -188,7 +181,6 @@ function SocialFeed({ user }) {
                         </div>
                     )}
 
-                    {/* Discussion Rooms */}
                     <div className="social-sidebar-card">
                         <h3>💬 Discussions</h3>
                         <p style={{ fontSize: '12px', opacity: 0.45, marginBottom: '14px', lineHeight: 1.5 }}>
@@ -221,7 +213,6 @@ function SocialFeed({ user }) {
                     </div>
                 </div>
 
-                {/* ══ MIDDLE COLUMN: FEED ══ */}
                 <div className="social-mid-col">
                     <div className="social-header">
                         <h1>🍿 The PopCorn Feed</h1>
@@ -255,10 +246,8 @@ function SocialFeed({ user }) {
                     )}
                 </div>
 
-                {/* ══ RIGHT COLUMN ══ */}
                 <div className="social-right-col">
 
-                    {/* Suggested Friends */}
                     <div className="social-sidebar-card">
                         <h3>✨ Suggested Friends</h3>
                         <SuggestedFriends user={user} />
@@ -269,7 +258,6 @@ function SocialFeed({ user }) {
                         )}
                     </div>
 
-                    {/* Active Discussions compact */}
                     {discussions.length > 0 && (
                         <div className="social-sidebar-card">
                             <h3>🔥 Active Rooms</h3>
@@ -288,7 +276,6 @@ function SocialFeed({ user }) {
                         </div>
                     )}
 
-                    {/* Community Stats */}
                     {communityStats && (
                         <div className="social-sidebar-card">
                             <h3>📊 Community</h3>
@@ -331,9 +318,6 @@ function SocialFeed({ user }) {
     );
 }
 
-// ─────────────────────────────────────────────────────
-// CREATE POST
-// ─────────────────────────────────────────────────────
 function CreatePost({ user, onPostCreated }) {
     const [content, setContent]           = useState('');
     const [image, setImage]               = useState(null);
@@ -388,15 +372,11 @@ function CreatePost({ user, onPostCreated }) {
     );
 }
 
-// ─────────────────────────────────────────────────────
-// POST CARD
-// ─────────────────────────────────────────────────────
 function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, navigate }) {
     const [showComments, setShowComments] = useState(false);
     const [comments, setComments]         = useState([]);
     const [newComment, setNewComment]     = useState('');
     
-    // Threading states
     const [replyToId, setReplyToId]       = useState(null);
     const [replyContent, setReplyContent] = useState('');
 
@@ -544,7 +524,6 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
 
             {showComments && (
                 <div className="comments-section">
-                    {/* Render comments in 3 layers */}
                     {comments.filter(c => !c.parent_id).map(c => (
                         <CommentItem 
                             key={c.comment_id}
@@ -581,9 +560,6 @@ function PostCard({ post, user, onPostUpdated, onPostDeleted, onLikeToggled, nav
     );
 }
 
-// ─────────────────────────────────────────────────────
-// COMMENT ITEM COMPONENT (FOR THREADING)
-// ─────────────────────────────────────────────────────
 function CommentItem({ 
     comment, allComments, user, onDelete, onReply, replyToId, 
     replyContent, setReplyContent, submitReply, handleReport, navigate, level 
@@ -619,7 +595,6 @@ function CommentItem({
                 </div>
             </div>
 
-            {/* Inline reply form */}
             {replyToId === comment.comment_id && (
                 <div className="reply-form-inline">
                     <MentionInput
@@ -636,7 +611,6 @@ function CommentItem({
                 </div>
             )}
 
-            {/* Recursively render children if level < 3 */}
             {replies.length > 0 && (
                 <div className="comment-replies-list">
                     {replies.map(r => (
@@ -650,7 +624,7 @@ function CommentItem({
                             replyToId={replyToId}
                             replyContent={replyContent}
                             setReplyContent={setReplyContent}
-                            submitReply={submitReply} // Pass functional reference down
+                            submitReply={submitReply} 
                             handleReport={handleReport}
                             navigate={navigate}
                             level={level + 1}
@@ -662,9 +636,6 @@ function CommentItem({
     );
 }
 
-// ─────────────────────────────────────────────────────
-// CREATE DISCUSSION MODAL
-// ─────────────────────────────────────────────────────
 function CreateDiscussionModal({ user, onClose, onCreated, navigate }) {
     const [title, setTitle]               = useState('');
     const [access, setAccess]             = useState('public');

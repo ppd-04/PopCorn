@@ -49,12 +49,11 @@ const PersonDetails = () => {
 
     const toggleFollow = async () => {
         if (followLoading) return;
-        
-        // --- Bulletproof 'Cheating' Logic ---
+
+        // eta ami konovabie bujhi nai ki hoise, onekkhon dhore hoi nai
         const nextState = !isFollowing;
         setIsFollowing(nextState);
         lastIntendedState.current = nextState;
-        // -------------------------------------
 
         setFollowLoading(true);
         try {
@@ -67,14 +66,13 @@ const PersonDetails = () => {
                     profile_path: person.profile_path
                 })
             });
-            
+
             if (!res.ok && res.status === 401) {
                 alert("Please log in to follow artists.");
                 setIsFollowing(!nextState); // Revert only on auth error
                 lastIntendedState.current = !nextState;
             }
-            // We consciously IGNORE the 'data.following' from server to prevent blinks
-            // The server response is just the confirmation, our local state is king.
+
         } catch (err) {
             console.error('Failed to toggle follow status:', err);
         } finally {
@@ -83,7 +81,7 @@ const PersonDetails = () => {
     };
 
     if (loading) return <div className="loading-spinner"><h2>Loading Profile...</h2></div>;
-    if (error) return <div className="loading-spinner" style={{color: 'red'}}><h2>Error: {error}</h2></div>;
+    if (error) return <div className="loading-spinner" style={{ color: 'red' }}><h2>Error: {error}</h2></div>;
     if (!person) return null;
 
     const photoUrl = person.profile_path
@@ -109,7 +107,7 @@ const PersonDetails = () => {
                             <span className="person-department-badge">{person.known_for_department}</span>
                         </div>
                     )}
-                    
+
                     <div className="person-meta">
                         {person.popularity && (
                             <div className="meta-item">
@@ -131,7 +129,7 @@ const PersonDetails = () => {
                         )}
                     </div>
 
-                    <button 
+                    <button
                         className={`follow-btn ${isFollowing ? 'following' : ''}`}
                         onClick={toggleFollow}
                         disabled={followLoading}

@@ -19,7 +19,6 @@ function DiscussionRoom({ user }) {
     const socketRef = useRef(null);
     const messagesEndRef = useRef(null);
 
-    // Initial Fetch
     useEffect(() => {
         const fetchDiscussion = async () => {
             try {
@@ -32,7 +31,7 @@ function DiscussionRoom({ user }) {
                     setDiscussion(data.discussion);
                     setMessages(data.messages);
                 } else {
-                    navigate('/social'); // fallback if unauthorized
+                    navigate('/social');
                 }
             } catch (err) {
                 console.error(err);
@@ -43,7 +42,6 @@ function DiscussionRoom({ user }) {
         fetchDiscussion();
     }, [id, navigate]);
 
-    // Socket Connection
     useEffect(() => {
         if (!user || loading || !discussion) return;
 
@@ -59,7 +57,6 @@ function DiscussionRoom({ user }) {
         };
     }, [id, user, loading, discussion]);
 
-    // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
@@ -81,11 +78,10 @@ function DiscussionRoom({ user }) {
 
     const posterUrl = discussion.poster_path 
         ? `https://image.tmdb.org/t/p/w1280${discussion.poster_path}` 
-        : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1280'; // fallback movie banner
+        : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1280';
 
     return (
         <div className="social-page" style={{ padding: 0 }}>
-            {/* Banner Header */}
             <div style={{ 
                 height: '350px', 
                 width: '100%', 
@@ -112,7 +108,6 @@ function DiscussionRoom({ user }) {
                 </span>
             </div>
 
-            {/* Chat Area */}
             <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 350px)', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
                 <div style={{ flex: 1, padding: '30px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                     {messages.length === 0 ? (
@@ -128,8 +123,8 @@ function DiscussionRoom({ user }) {
                                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
                                         {!isMine && <span style={{ fontSize: '12px', opacity: 0.6, marginBottom: '5px' }}>{msg.sender_username}</span>}
                                         <div style={{
-                                            background: isMine ? 'linear-gradient(45deg, #f5c518, #e6b800)' : 'rgba(255,255,255,0.1)',
-                                            color: isMine ? 'black' : 'white',
+                                            background: isMine ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(255,255,255,0.1)',
+                                            color: isMine ? '#fff' : 'white',
                                             padding: '12px 18px',
                                             borderRadius: '20px',
                                             borderTopLeftRadius: !isMine ? '4px' : '20px',
@@ -146,7 +141,6 @@ function DiscussionRoom({ user }) {
                     <div ref={messagesEndRef} />
                 </div>
                 
-                {/* Input Area */}
                 {user ? (
                     <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', background: 'rgba(10,10,15,0.95)', display: 'flex', gap: '15px' }}>
                         <MentionInput 

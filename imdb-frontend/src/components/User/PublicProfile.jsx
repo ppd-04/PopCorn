@@ -146,6 +146,40 @@ function PublicProfile({ currentUser }) {
                 </div>
             </div>
 
+            {/* Stats & Genres Section */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '40px' }}>
+                <div style={{ padding: '20px', backgroundColor: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                    <h3 style={{ margin: '0 0 15px 0', color: '#f5c518' }}>User Stats</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ opacity: 0.7 }}>Movies Watched</span>
+                        <strong>{profile.stats?.watched || 0}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <span style={{ opacity: 0.7 }}>Total Ratings</span>
+                        <strong>{profile.stats?.ratings || 0}</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ opacity: 0.7 }}>Avg Rating Given</span>
+                        <strong>⭐ {profile.stats?.avgRating || '0.0'}</strong>
+                    </div>
+                </div>
+                
+                <div style={{ padding: '20px', backgroundColor: 'var(--card-bg)', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                    <h3 style={{ margin: '0 0 15px 0', color: '#f5c518' }}>Favorite Genres</h3>
+                    {profile.favoriteGenres && profile.favoriteGenres.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                            {profile.favoriteGenres.map(genre => (
+                                <span key={genre} style={{ background: 'rgba(245, 197, 24, 0.1)', color: '#f5c518', padding: '6px 12px', borderRadius: '20px', fontSize: '14px', border: '1px solid rgba(245, 197, 24, 0.3)' }}>
+                                    {genre}
+                                </span>
+                            ))}
+                        </div>
+                    ) : (
+                        <p style={{ opacity: 0.5, margin: 0 }}>No favorite genres selected.</p>
+                    )}
+                </div>
+            </div>
+
             {/* Posts Section */}
             <h2>{profile.username}'s Posts</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '20px' }}>

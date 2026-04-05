@@ -39,7 +39,7 @@ function App() {
   const [chatOpen, setChatOpen] = useState(false);
   const [heroBg, setHeroBg] = useState('');
 
-  // Always dark mode
+  //  dark mode
   useEffect(() => {
     document.body.className = 'dark';
   }, []);
@@ -49,7 +49,7 @@ function App() {
     if (storedUser) {
       setUser(JSON.parse(storedUser));
     }
-    
+
     async function fetchRandomBg() {
       try {
         const { data, error } = await supabase
@@ -60,12 +60,12 @@ function App() {
           .limit(50);
 
         if (data && !error && data.length > 0) {
-          // Filter out romantic movies
+
           const safeMovies = data.filter(m => {
             if (!m.movie_genres) return true;
             return !m.movie_genres.some(mg => mg.genres && mg.genres.name.toLowerCase() === 'romance');
           });
-          
+
           if (safeMovies.length > 0) {
             const randomMovie = safeMovies[Math.floor(Math.random() * safeMovies.length)];
             const path = randomMovie.backdrop_path;
@@ -77,7 +77,6 @@ function App() {
       } catch (err) {
         console.error("Error fetching hero bg:", err);
       }
-      // Fallback
       setHeroBg(HERO_BACKDROPS[Math.floor(Math.random() * HERO_BACKDROPS.length)]);
     }
     fetchRandomBg();
@@ -170,7 +169,6 @@ function App() {
 
                 <TrailerRow />
 
-                {/* Genre-Based Movie Rows */}
                 <GenreRows />
               </>
             } />
@@ -195,7 +193,7 @@ function App() {
 
             <Route path="/admin" element={
               <ProtectedRoute>
-                {user && user.is_admin ? <AdminDashboard /> : <div style={{padding:'100px', textAlign:'center', color:'red', fontWeight:'bold'}}>Access denied. Admins only.</div>}
+                {user && user.is_admin ? <AdminDashboard /> : <div style={{ padding: '100px', textAlign: 'center', color: 'red', fontWeight: 'bold' }}>Access denied. Admins only.</div>}
               </ProtectedRoute>
             } />
 

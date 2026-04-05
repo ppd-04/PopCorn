@@ -1,7 +1,3 @@
-/* =========================================
-   CREWS PAGE STYLES
-   ========================================= */
-
 .crews-page {
   min-height: 80vh;
   padding: 100px 30px 60px;
@@ -192,9 +188,17 @@
 }
 
 @keyframes shimmer {
-  0% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-  100% { opacity: 0.4; }
+  0% {
+    opacity: 0.4;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+
+  100% {
+    opacity: 0.4;
+  }
 }
 
 /* Empty */
@@ -251,18 +255,23 @@
   .crews-page {
     padding: 80px 16px 40px;
   }
+
   .crews-title {
     font-size: 2rem;
   }
+
   .crews-grid {
     grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
+
   .crew-photo {
     height: 200px;
   }
+
   .crews-search input {
     width: 100%;
   }
+
   .crews-controls {
     flex-direction: column;
     align-items: stretch;

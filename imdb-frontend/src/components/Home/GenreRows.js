@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../../supabaseClient';
 import { Link } from 'react-router-dom';
 
-const GENRE_LIMIT = 10; // movies per genre row
+const GENRE_LIMIT = 10; // per genre row
 
 const GenreRows = () => {
   const [genreData, setGenreData] = useState([]);
@@ -12,7 +12,7 @@ const GenreRows = () => {
     async function fetchGenresWithMovies() {
       setLoading(true);
       try {
-        // Fetch all genres
+        // all genres
         const { data: genres, error: genreError } = await supabase
           .from('genres')
           .select('*')
@@ -24,7 +24,7 @@ const GenreRows = () => {
           return;
         }
 
-        // For each genre, fetch top movies
+        // each genre top movies
         const results = [];
         for (const genre of genres) {
           const { data: movieGenres, error: mgError } = await supabase
@@ -71,7 +71,7 @@ const GenreRows = () => {
               <h3 style={{ background: 'rgba(255,255,255,0.06)', width: '200px', height: '28px', borderRadius: '8px' }}>&nbsp;</h3>
             </div>
             <div className="genre-row-loading">
-              {[1,2,3,4,5,6].map(j => (
+              {[1, 2, 3, 4, 5, 6].map(j => (
                 <div key={j} className="genre-card-skeleton" />
               ))}
             </div>

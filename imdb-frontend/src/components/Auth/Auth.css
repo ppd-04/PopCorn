@@ -4,10 +4,10 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, 
-    rgba(0, 0, 0, 0.95) 0%, 
-    rgba(20, 20, 40, 0.85) 50%, 
-    rgba(0, 0, 0, 0.98) 100%);
+  background: linear-gradient(135deg,
+      rgba(0, 0, 0, 0.95) 0%,
+      rgba(20, 20, 40, 0.85) 50%,
+      rgba(0, 0, 0, 0.98) 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -164,7 +164,7 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
   transition: left 0.5s;
 }
 
@@ -333,26 +333,50 @@
 }
 
 @keyframes successFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes successFadeOut {
-  from { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(0.95); }
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
 }
 
 @keyframes checkScaleIn {
-  from { transform: scale(0); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes drawCheck {
-  to { stroke-dashoffset: 0; }
+  to {
+    stroke-dashoffset: 0;
+  }
 }
 
 @keyframes successTextIn {
-  to { opacity: 1; transform: translateY(0); }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Verification email sent state */
@@ -403,15 +427,14 @@
   cursor: not-allowed;
 }
 
-/* ===================================== */
 /* KEYFRAME ANIMATIONS                    */
-/* ===================================== */
 
 @keyframes modalSlideIn {
   from {
     opacity: 0;
     transform: scale(0.9) translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -423,6 +446,7 @@
     opacity: 0;
     transform: translateY(20px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -430,13 +454,18 @@
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
 }
 
-/* ===================================== */
 /* REGISTRATION FORM EXPANDED STYLES     */
-/* ===================================== */
 
 .auth-container-register {
   max-width: 520px;
@@ -635,11 +664,11 @@ input[type="date"] {
     padding: 35px 25px;
     margin: 10px;
   }
-  
+
   .auth-title {
     font-size: 2rem;
   }
-  
+
   .logo-icon {
     font-size: 2.5rem;
   }

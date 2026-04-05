@@ -222,3 +222,10 @@
   padding: 0 16px;
   margin-bottom: 8px;
 }
+
+
+/* Override DM bubble color */
+.message-bubble.mine {
+  background: linear-gradient(135deg, #6366f1, #4f46e5) !important;
+  color: #fff !important;
+}

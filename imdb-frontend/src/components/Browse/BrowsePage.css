@@ -1,4 +1,3 @@
-/* Premium Browse Page Styles */
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap');
 
 :root {
@@ -18,7 +17,7 @@
   overflow-x: hidden;
 }
 
-/* --- Spotlight Hero --- */
+/* spotlight Hero */
 .spotlight-section {
   position: relative;
   height: 85vh;
@@ -196,7 +195,7 @@
   width: 60px;
 }
 
-/* --- Recommendation Rows --- */
+/* Recommendation */
 .browse-main-content {
   padding: 40px 0 100px 0;
   background: linear-gradient(to bottom, #0f0f0f 0%, #050505 100%);
@@ -325,7 +324,7 @@
   opacity: 0.9;
 }
 
-/* --- Upsell Section --- */
+/* upsell*/
 .upsell-container {
   padding: 60px 8%;
 }
@@ -418,7 +417,7 @@
   }
 }
 
-/* --- AI Recommendation Section Styles --- */
+/*  AI recommends */
 
 
 .ai-title {
@@ -492,9 +491,7 @@
   }
 }
 
-/* /* ============================================
-   AI CAROUSEL (CINEMATIC MINI-HERO)
-   ============================================ */
+/*  AI recommends*/
 
 .ai-carousel-section {
   position: relative;
@@ -513,7 +510,7 @@
   z-index: 5;
 }
 
-/* Stage - Increased height for cinematic feel */
+/* Stage*/
 .ai-carousel-stage {
   position: relative;
   height: 520px;
@@ -523,7 +520,7 @@
   background: #0a0a0a;
 }
 
-/* Each slide */
+/* slide */
 .ai-carousel-slide {
   position: absolute;
   top: 0;
@@ -533,7 +530,8 @@
   opacity: 0;
   visibility: hidden;
   transition: opacity 1s ease, visibility 1s, transform 1s ease;
-  transform: scale(1.05); /* Slight zoom out animation */
+  transform: scale(1.05);
+  /* Slight zoom out animation */
   display: flex;
   align-items: center;
 }
@@ -545,7 +543,7 @@
   z-index: 2;
 }
 
-/* Backdrop for each AI slide */
+/* Backdrop */
 .ai-slide-backdrop {
   position: absolute;
   top: 0;
@@ -562,7 +560,7 @@
   transform: scale(1.1);
 }
 
-/* Content Container */
+/* Container */
 .ai-slide-content {
   position: relative;
   z-index: 10;
@@ -596,7 +594,7 @@
   object-fit: cover;
 }
 
-/* Information Side */
+/* Information */
 .ai-slide-info {
   flex: 1;
   display: flex;
@@ -624,7 +622,7 @@
   gap: 15px;
 }
 
-/* The "You were heard" AI Note Container */
+/*  AI note  */
 .ai-note-container {
   position: relative;
   background: rgba(168, 85, 247, 0.1);
@@ -633,13 +631,20 @@
   border-radius: 20px;
   backdrop-filter: blur(15px);
   box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.1),
-              0 10px 30px rgba(0, 0, 0, 0.3);
+    0 10px 30px rgba(0, 0, 0, 0.3);
   animation: pulseGlow 4s infinite alternate;
 }
 
 @keyframes pulseGlow {
-  from { border-color: rgba(168, 85, 247, 0.3); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3); }
-  to { border-color: rgba(168, 85, 247, 0.6); box-shadow: 0 10px 40px rgba(168, 85, 247, 0.2); }
+  from {
+    border-color: rgba(168, 85, 247, 0.3);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  }
+
+  to {
+    border-color: rgba(168, 85, 247, 0.6);
+    box-shadow: 0 10px 40px rgba(168, 85, 247, 0.2);
+  }
 }
 
 .quote-icon {
@@ -664,7 +669,7 @@
   z-index: 2;
 }
 
-/* Action Buttons */
+/* Action button */
 .ai-slide-actions {
   display: flex;
   gap: 15px;
@@ -708,7 +713,7 @@
   transform: translateY(-3px);
 }
 
-/* Dots Refined */
+/* Dots */
 .ai-carousel-dots {
   display: flex;
   justify-content: center;
@@ -736,18 +741,53 @@
 
 /* Responsive Adjustments */
 @media (max-width: 1024px) {
-  .ai-carousel-stage { height: 600px; }
-  .ai-slide-content { flex-direction: column; text-align: center; justify-content: center; gap: 30px; }
-  .ai-movie-poster { flex: 0 0 200px; height: 300px; }
-  .ai-slide-metadata { justify-content: center; }
-  .ai-slide-actions { justify-content: center; }
-  .ai-note-container { padding: 20px; }
-  .ai-note-text { font-size: 16px; }
+  .ai-carousel-stage {
+    height: 600px;
+  }
+
+  .ai-slide-content {
+    flex-direction: column;
+    text-align: center;
+    justify-content: center;
+    gap: 30px;
+  }
+
+  .ai-movie-poster {
+    flex: 0 0 200px;
+    height: 300px;
+  }
+
+  .ai-slide-metadata {
+    justify-content: center;
+  }
+
+  .ai-slide-actions {
+    justify-content: center;
+  }
+
+  .ai-note-container {
+    padding: 20px;
+  }
+
+  .ai-note-text {
+    font-size: 16px;
+  }
 }
 
 @media (max-width: 768px) {
-  .ai-carousel-stage { height: 700px; }
-  .ai-slide-title { font-size: 2rem; }
-  .ai-movie-poster { display: none; } /* Hide poster on small mobile to focus on text */
-  .ai-carousel-section { padding: 40px 5%; }
+  .ai-carousel-stage {
+    height: 700px;
+  }
+
+  .ai-slide-title {
+    font-size: 2rem;
+  }
+
+  .ai-movie-poster {
+    display: none;
+  }
+
+  .ai-carousel-section {
+    padding: 40px 5%;
+  }
 }

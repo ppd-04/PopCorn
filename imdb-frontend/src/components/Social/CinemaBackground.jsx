@@ -5,11 +5,9 @@ const CinemaBackground = ({ posterPath }) => {
   const [nextPoster, setNextPoster] = useState(null);
   const [isFading, setIsFading] = useState(false);
 
-  // Fallback background image (PopCorn themed)
   const FALLBACK = "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=2070&auto=format&fit=crop";
 
   useEffect(() => {
-    // TMDB posterPath usually has a leading /
     const path = posterPath ? (posterPath.startsWith('/') ? posterPath : '/' + posterPath) : null;
     const fullPath = path ? `https://image.tmdb.org/t/p/original${path}` : FALLBACK;
     
@@ -35,7 +33,6 @@ const CinemaBackground = ({ posterPath }) => {
 
   return (
     <div className="cinema-background-wrapper">
-      {/* Current Layer */}
       {currentPoster && (
         <div 
           className="cinema-bg-layer" 
@@ -46,7 +43,6 @@ const CinemaBackground = ({ posterPath }) => {
         />
       )}
       
-      {/* Next Layer (Fading In) */}
       {nextPoster && (
         <div 
           className="cinema-bg-layer" 
@@ -57,7 +53,6 @@ const CinemaBackground = ({ posterPath }) => {
         />
       )}
 
-      {/* Glassmorphism Overlay */}
       <div className="cinema-bg-overlay" />
     </div>
   );

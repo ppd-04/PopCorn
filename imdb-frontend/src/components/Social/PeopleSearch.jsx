@@ -27,7 +27,6 @@ function PeopleSearch() {
             }
         };
 
-        // simple debounce
         const timerId = setTimeout(() => {
             fetchUsers();
         }, 300);

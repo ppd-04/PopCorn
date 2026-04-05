@@ -6,7 +6,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
     email: '',
     password: ''
   });
-  // Registration-only fields
+  // Registration fiels
   const [regData, setRegData] = useState({
     full_name: '',
     date_of_birth: '',
@@ -118,9 +118,9 @@ function LoginForm({ onLoginSuccess, onClose }) {
         endpoint = otpMode ? 'http://localhost:5000/api/register' : 'http://localhost:5000/api/send-otp';
       }
 
-      const requestBody = { 
-        email: formData.email, 
-        password: formData.password 
+      const requestBody = {
+        email: formData.email,
+        password: formData.password
       };
 
       if (isRegister) {
@@ -131,7 +131,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
         requestBody.address = regData.address || null;
         requestBody.profile_picture = profilePicture || null;
         if (otpMode) {
-           requestBody.otp_code = otpCode;
+          requestBody.otp_code = otpCode;
         }
       }
 
@@ -154,15 +154,15 @@ function LoginForm({ onLoginSuccess, onClose }) {
         return;
       }
 
-      // Login success — show animated overlay
+      // Login success 
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
       localStorage.setItem('user', JSON.stringify(data.user));
-      
+
       setSuccessUser(data.user);
       setLoginSuccess(true);
-      
+
       // After animation, close the form
       setTimeout(() => {
         setSuccessClosing(true);
@@ -185,10 +185,10 @@ function LoginForm({ onLoginSuccess, onClose }) {
       const response = await fetch('http://localhost:5000/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: formData.email, 
+        body: JSON.stringify({
+          email: formData.email,
           password: formData.password,
-          full_name: regData.full_name 
+          full_name: regData.full_name
         })
       });
       const data = await response.json();
@@ -216,10 +216,9 @@ function LoginForm({ onLoginSuccess, onClose }) {
   return (
     <div className="auth-overlay">
       <div className={`auth-container ${isRegister ? 'auth-container-register' : ''}`}>
-        
+
         <button className="close-btn" onClick={handleClose}>×</button>
 
-        {/* Login Success Animation Overlay */}
         {loginSuccess && (
           <div className={`login-success-overlay ${successClosing ? 'closing' : ''}`}>
             <div className="success-checkmark">
@@ -235,7 +234,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
           </div>
         )}
 
-        {/* OTP Input State */}
+        {/* OTP*/}
         {otpMode && !loginSuccess && (
           <div className="verification-sent">
             <div className="email-icon">🔐</div>
@@ -243,7 +242,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
             <p>We've sent a 6-digit OTP code to:</p>
             <p style={{ color: '#f5c518', fontWeight: 600, fontSize: '1.1rem' }}>{formData.email}</p>
             <p>Enter the code below to complete your registration.</p>
-            
+
             <form onSubmit={handleSubmit} className="auth-form" style={{ marginTop: '20px' }}>
               <div className="form-group">
                 <input
@@ -262,8 +261,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
               </button>
             </form>
 
-            <button 
-              className="resend-btn" 
+            <button
+              className="resend-btn"
               onClick={handleResendOTP}
               disabled={isLoading}
               style={{ marginTop: '15px' }}
@@ -276,8 +275,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
               </div>
             )}
             <div className="auth-toggle" style={{ marginTop: '20px' }}>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="toggle-btn"
                 onClick={() => { setOtpMode(false); setMessage(''); }}
               >
@@ -287,7 +286,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
           </div>
         )}
 
-        {/* Normal Form (hidden when success or verification) */}
+        {/* Normal Form (hide kora) */}
         {!loginSuccess && !otpMode && (
           <>
             <div className="auth-header">
@@ -296,19 +295,19 @@ function LoginForm({ onLoginSuccess, onClose }) {
                 {isRegister ? 'Join PopCorn' : 'Welcome Back'}
               </h1>
               <p className="auth-subtitle">
-                {isRegister 
-                  ? 'Create your account to save watchlist & ratings' 
+                {isRegister
+                  ? 'Create your account to save watchlist & ratings'
                   : 'Sign in to continue your cinematic journey'
                 }
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="auth-form">
-              {/* Registration-only fields */}
+              {/* Registrationonly fields */}
               {isRegister && (
                 <>
                   <div className="profile-picture-section">
-                    <div 
+                    <div
                       className="profile-picture-preview"
                       onClick={() => fileInputRef.current && fileInputRef.current.click()}
                     >
@@ -322,8 +321,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
                       )}
                     </div>
                     {profilePreview && (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="remove-picture-btn"
                         onClick={removeProfilePicture}
                       >
@@ -422,7 +421,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
                   disabled={isLoading}
                 />
               </div>
-              
+
               <div className="form-group">
                 <label>Password <span className="required-star">*</span></label>
                 <input
@@ -452,8 +451,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
 
             {!isRegister && (
               <div className="forgot-password">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   className="forgot-btn"
                   onClick={handleForgotPassword}
                   disabled={isLoading}
@@ -467,8 +466,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
               {isRegister ? (
                 <>
                   Already have an account?{' '}
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="toggle-btn"
                     onClick={() => setIsRegister(false)}
                     disabled={isLoading}
@@ -479,8 +478,8 @@ function LoginForm({ onLoginSuccess, onClose }) {
               ) : (
                 <>
                   Still Unregistered?{' '}
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     className="toggle-btn"
                     onClick={() => { setIsRegister(true); setOtpMode(false); }}
                     disabled={isLoading}

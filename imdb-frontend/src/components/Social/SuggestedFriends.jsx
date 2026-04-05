@@ -98,7 +98,6 @@ function SuggestedFriends({ user }) {
                         className="sf-card"
                         style={{ animationDelay: `${idx * 70}ms` }}
                     >
-                        {/* Avatar */}
                         <div
                             className="sf-avatar"
                             onClick={() => navigate(`/user/${s.user_id}`)}
@@ -110,7 +109,6 @@ function SuggestedFriends({ user }) {
                             }
                         </div>
 
-                        {/* Info */}
                         <div className="sf-info" onClick={() => navigate(`/user/${s.user_id}`)}>
                             <div className="sf-name">{s.full_name || s.username}</div>
                             <div className="sf-username">@{s.username}</div>
@@ -122,7 +120,6 @@ function SuggestedFriends({ user }) {
                             )}
                         </div>
 
-                        {/* Action */}
                         <button
                             className={`sf-add-btn ${sent ? 'sent' : ''}`}
                             onClick={() => !sent && sendRequest(s.user_id)}

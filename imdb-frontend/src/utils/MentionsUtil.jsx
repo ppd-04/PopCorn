@@ -3,21 +3,20 @@ import React, { useState, useEffect } from 'react';
 const API_BASE = 'http://localhost:5000/api';
 
 /**
- * Renders a single mention as a premium Bubble.
- * Supports both legacy (fuzzy) and new (structured) data.
+ mention bubble
  */
 export function MentionResolve({ title, type, id, raw, navigate }) {
   const [resolved, setResolved] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // If we already have structured data, we can optionally fetch the poster if not provided
+    // details neya
     async function fetchDetails() {
       try {
-        const url = id 
+        const url = id
           ? `${API_BASE}/movies/mention/resolve?id=${id}&type=${type}`
           : `${API_BASE}/movies/mention/resolve?text=${encodeURIComponent(raw)}`;
-        
+
         const res = await fetch(url);
         if (res.ok) {
           const data = await res.json();
@@ -47,7 +46,7 @@ export function MentionResolve({ title, type, id, raw, navigate }) {
 
   if (loading && !title) return <span>@{raw}</span>;
 
-  // If we tried to resolve a legacy mention and got nothing, render as plain text
+  // kisu na paile effect thakbe na
   if (!loading && !resolved && !id) {
     return <span>@{raw}</span>;
   }
@@ -64,10 +63,7 @@ export function MentionResolve({ title, type, id, raw, navigate }) {
 }
 
 /**
- * Parses text and replaces @mentions with MentionResolve bubbles.
- * Supports:
- * 1. New: @[The Batman](movie:123)
- * 2. Legacy: @Batman
+ bubble banano
  */
 export function renderWithMentions(text, navigate) {
   if (!text) return null;
@@ -81,52 +77,51 @@ export function renderWithMentions(text, navigate) {
   let lastIndex = 0;
   let match;
 
-  // Process structured mentions first as they are specific
   const allMatches = [];
-  
-  // Find all structured matches
+
+  // structured matches
   while ((match = structuredRegex.exec(text)) !== null) {
     allMatches.push({
       start: match.index,
       end: match.index + match[0].length,
-      component: <MentionResolve 
+      component: <MentionResolve
         key={`struct-${match.index}`}
-        title={match[1]} 
-        type={match[2]} 
-        id={match[3]} 
-        navigate={navigate} 
+        title={match[1]}
+        type={match[2]}
+        id={match[3]}
+        navigate={navigate}
       />
     });
   }
 
-  // Find all legacy matches that don't overlap with structured ones
+  // structure chara
   legacyRegex.lastIndex = 0;
   while ((match = legacyRegex.exec(text)) !== null) {
-      const start = match.index;
-      const end = match.index + match[0].length;
-      const rawMatch = match[1];
-      
-      const isOverlapped = allMatches.some(m => 
-          (start >= m.start && start < m.end) ||
-          (end > m.start && end <= m.end)
-      );
-      if (!isOverlapped) {
-          allMatches.push({
-              start,
-              end,
-              component: <MentionResolve 
-                key={`leg-${start}`}
-                raw={rawMatch} 
-                navigate={navigate} 
-              />
-          });
-      }
+    const start = match.index;
+    const end = match.index + match[0].length;
+    const rawMatch = match[1];
+
+    const isOverlapped = allMatches.some(m =>
+      (start >= m.start && start < m.end) ||
+      (end > m.start && end <= m.end)
+    );
+    if (!isOverlapped) {
+      allMatches.push({
+        start,
+        end,
+        component: <MentionResolve
+          key={`leg-${start}`}
+          raw={rawMatch}
+          navigate={navigate}
+        />
+      });
+    }
   }
 
-  // Sort matches by position
+  // position dsort
   allMatches.sort((a, b) => a.start - b.start);
 
-  // Build the parts array
+  // part alada kora
   allMatches.forEach(m => {
     if (m.start > lastIndex) {
       parts.push(text.slice(lastIndex, m.start));
@@ -143,8 +138,7 @@ export function renderWithMentions(text, navigate) {
 }
 
 /**
- * Extracts the first structured mention from text.
- * Used for dynamic cinematic background updates.
+ prothomta ne
  */
 export function getFirstMention(text) {
   if (!text) return null;

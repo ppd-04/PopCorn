@@ -290,45 +290,47 @@ app.post('/api/register', async (req, res) => {
         const userCheck = await client.query('select * from users where email = $1', [email]);
         if (userCheck.rows.length > 0) throw new Error('User already exists');
 
-        const koybarHashingHobe = 10;
-        const passwordHash = await bcrypt.hash(password, koybarHashingHobe);
-
         const userEmail = email.split('@')[0];
-        const insertQuery = `insert into users (email, password, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_verified) 
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) 
-            returning user_id, email, username, full_name, date_of_birth, gender, phone_number, address, profile_picture, is_admin`;
-        const newUser = await client.query(insertQuery, [
-            email, passwordHash, userEmail,
-            full_name ? full_name.trim() : null,
-            date_of_birth || null, gender || null,
-            phone_number ? phone_number.trim() : null,
-            address ? address.trim() : null,
-            profile_picture || null, true //  verified
-        ]);
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
 
-        await client.query('delete from email_otps where email = $1', [email]);
+        const result = await pool.query(
+            'CALL sp_register_user($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULL)',
+            [
+                email,
+                passwordHash,
+                userEmail,
+                full_name ? full_name.trim() : null,
+                date_of_birth || null,
+                gender || null,
+                phone_number ? phone_number.trim() : null,
+                address ? address.trim() : null,
+                profile_picture || null,
+                otp_code
+            ]
+        );
 
-        await client.query('commit');
+        const newUserId = result.rows[0].p_user_id;
+
+        const userRes = await pool.query('select * from users where user_id = $1', [newUserId]);
+        const newUser = userRes.rows[0];
 
         // Automatically login
         const token = jwt.sign(
-            { userId: newUser.rows[0].user_id, email: newUser.rows[0].email, isAdmin: newUser.rows[0].is_admin },
+            { userId: newUser.user_id, email: newUser.email, isAdmin: newUser.is_admin },
             process.env.JWT_SECRET,
             { expiresIn: '30d' }
         );
 
         res.status(201).json({
             message: 'Account verified and created successfully!',
-            user: newUser.rows[0],
+            user: newUser,
             token: token
         });
 
     } catch (error) {
-        await client.query('rollback');
-        console.error(error);
+        console.error('[Registration] Procedure Error:', error.message);
         res.status(400).json({ error: error.message || 'Verification failed' });
-    } finally {
-        client.release();
     }
 });
 
@@ -384,7 +386,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// Email verification endpoint
+// Email verification 
 app.get('/api/verify-email', async (req, res) => {
     const { token } = req.query;
     if (!token) {
@@ -567,7 +569,6 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
         const forceRefresh = req.query.force === 'true';
 
         if (!userId) {
-            // Guest experience: top movies
             const guestRes = await pool.query('select * from movies where vote_average >= 8.2 order by random() limit 10');
             return res.json({
                 recommendations: guestRes.rows.map(m => ({ ...m, ai_note: "Discover a top-rated cinematic masterpiece." })),
@@ -575,7 +576,6 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
             });
         }
 
-        // Tier 1: Check Cache (if not forcing refresh)
         const currentCache = await pool.query('select recommendations, last_updated from user_ai_cache where user_id = $1', [userId]);
         const existingRecs = currentCache.rows.length > 0 ? currentCache.rows[0].recommendations : [];
 
@@ -588,7 +588,6 @@ app.get('/api/browse/ai', optionalAuthenticate, async (req, res) => {
             }
         }
 
-        // Tier 2: Generate New Picks (Priority logic)
         console.log(`[Browse] AI: Generating refined picks for User ${userId} (force=${forceRefresh})`);
         const avoidTitles = existingRecs.map(r => r.title).join(', ');
 
@@ -1226,7 +1225,7 @@ app.get('/api/profile', authenticateToken, async (req, res) => {
     }
 });
 
-// update PROFILE 
+// update kora profile
 app.put('/api/profile', authenticateToken, async (req, res) => {
     const userId = req.user.userId;
     const { full_name, phone_number, address, profile_picture } = req.body;
@@ -1264,7 +1263,7 @@ app.put('/api/profile/password', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'New password must be at least 6 characters' });
         }
 
-        // Verify current password
+        // verify current password
         const user = await pool.query('select password from users where user_id = $1', [userId]);
         if (user.rows.length === 0) {
             return res.status(404).json({ error: 'User not found' });
@@ -1275,7 +1274,7 @@ app.put('/api/profile/password', authenticateToken, async (req, res) => {
             return res.status(400).json({ error: 'Current password is incorrect' });
         }
 
-        // Abar hash koro
+        // abar hash koro
         const passwordHash = await bcrypt.hash(new_password, 10);
         await pool.query('update users set password = $1 where user_id = $2', [passwordHash, userId]);
 
@@ -1436,9 +1435,7 @@ app.put('/api/profile/interests', authenticateToken, async (req, res) => {
     const client = await pool.connect();
     try {
         await client.query('begin');
-        // Clear existing interests
         await client.query('delete from user_interests where user_id = $1', [userId]);
-        // Insert new ones
         if (genre_ids && genre_ids.length > 0) {
             const values = genre_ids.map((gid, i) => `($1, $${i + 2})`).join(', ');
             const params = [userId, ...genre_ids];
@@ -1473,27 +1470,23 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
             'select count(*)::int as count from user_watched where user_id = $1', [userId]
         );
 
-        // Average rating given
+
         const avgRating = await pool.query(
             'select coalesce(avg(rating), 0)::numeric(3,1) as avg from movie_ratings where user_id = $1', [userId]
         );
 
-        // Total ratings given
         const ratingsCount = await pool.query(
             'select count(*)::int as count from movie_ratings where user_id = $1', [userId]
         );
 
-        // Watchlist count
         const watchlistCount = await pool.query(
             'select count(*)::int as count from watchlist where user_id = $1', [userId]
         );
 
-        // Favourites count
         const favouritesCount = await pool.query(
             'select count(*)::int as count from user_favourites where user_id = $1', [userId]
         );
 
-        // Genre distribution 
         const genreDistribution = await pool.query(
             `select g.name, count(*)::int as count
              from user_watched uw
@@ -1506,7 +1499,6 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
             [userId]
         );
 
-        // Rating distribution 
         const ratingDistribution = await pool.query(
             `select floor(rating)::int as rating_value, count(*)::int as count
              from movie_ratings
@@ -1516,7 +1508,6 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
             [userId]
         );
 
-        // Monthly activity 
         const monthlyActivity = await pool.query(
             `select 
                 to_char(created_at, 'YYYY-MM') as month,
@@ -1528,7 +1519,6 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
             [userId]
         );
 
-        // Recent activity
         const recentActivity = await pool.query(
             `select ua.*, m.title as movie_title, m.poster_path
              from user_activity ua
@@ -1539,7 +1529,6 @@ app.get('/api/profile/stats', authenticateToken, async (req, res) => {
             [userId]
         );
 
-        // User interests
         const interests = await pool.query(
             `select ui.genre_id, g.name as genre_name
              from user_interests ui
@@ -1630,7 +1619,6 @@ app.get('/api/movies/search', async (req, res) => {
         );
 
         const combined = [...moviesResult.rows, ...seriesesResult.rows];
-        // Sort by title lexicographically and limit to 8 combined results
         combined.sort((a, b) => a.title.localeCompare(b.title));
         return res.json(combined.slice(0, 8));
     } catch (error) {
@@ -1691,11 +1679,11 @@ app.get('/api/mention/search', async (req, res) => {
 
         let movies, series;
         if (!q) {
-            // Return top 5 trending if no query
+            // top 5
             movies = await pool.query(`select id, title as name, poster_path, 'movie' as type, release_date, popularity from movies order by popularity desc limit 5`);
             series = await pool.query(`select tmdb_id as id, name, poster_path, 'series' as type, first_air_date as release_date, popularity from serieses order by popularity desc limit 5`);
         } else {
-            // Search both tables
+            // naile khujlam
             movies = await pool.query(
                 `select id, title as name, poster_path, 'movie' as type, release_date, popularity 
                  from movies where title ilike $1 order by popularity desc limit 5`,
@@ -1716,7 +1704,6 @@ app.get('/api/mention/search', async (req, res) => {
     }
 });
 
-// Resolve mention title (Legacy and New support)
 app.get('/api/movies/mention/resolve', async (req, res) => {
     try {
         const text = (req.query.text || '').trim();
@@ -1724,7 +1711,6 @@ app.get('/api/movies/mention/resolve', async (req, res) => {
         const id = req.query.id;
 
         if (id) {
-            // direct-id lookup
             const table = type === 'series' ? 'serieses' : 'movies';
             const idCol = type === 'series' ? 'tmdb_id' : 'id';
             const nameCol = type === 'series' ? 'name' : 'title';
@@ -1775,9 +1761,7 @@ app.get('/api/series/top', async (req, res) => {
     }
 });
 
-// ==========================================
-// SERIES DETAILS ROUTES
-// ==========================================
+// series details
 
 app.get('/api/series/:id/rating', async (req, res) => {
     try {
@@ -2078,7 +2062,25 @@ app.get('/api/users/:id/profile', optionalAuthenticate, async (req, res) => {
                 actionUserId = fRes.rows[0].requester_id;
             }
         }
-        res.json({ ...userRes.rows[0], friendStatus, actionUserId });
+        
+        const watchedCount = await pool.query('select count(*)::int as count from user_watched where user_id = $1', [targetUserId]);
+        const avgRating = await pool.query('select coalesce(avg(rating), 0)::numeric(3,1) as avg from movie_ratings where user_id = $1', [targetUserId]);
+        const ratingsCount = await pool.query('select count(*)::int as count from movie_ratings where user_id = $1', [targetUserId]);
+        const interests = await pool.query(
+            `select ui.genre_id, g.name as genre_name
+             from user_interests ui
+             left join genres g on ui.genre_id = g.id
+             where ui.user_id = $1`, [targetUserId]
+        );
+        
+        const stats = {
+            watched: watchedCount.rows[0].count,
+            avgRating: avgRating.rows[0].avg,
+            ratings: ratingsCount.rows[0].count,
+        };
+        const favoriteGenres = interests.rows.map(row => row.genre_name).filter(name => name);
+
+        res.json({ ...userRes.rows[0], friendStatus, actionUserId, stats, favoriteGenres });
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: 'Failed to load profile' });
@@ -2132,6 +2134,7 @@ app.post('/api/friends/request/:id', authenticateToken, async (req, res) => {
         await pool.query('rollback');
         res.status(500).json({ error: 'Action failed' });
     }
+
 });
 
 app.post('/api/friends/accept/:id', authenticateToken, async (req, res) => {
@@ -2199,9 +2202,6 @@ app.put('/api/notifications/:id/read', authenticateToken, async (req, res) => {
         res.status(500).json({ error: 'Failed to mark read' });
     }
 });
-
-
-// DIRECT MESSAGES & DISCUSSIONS REST APIs
 
 
 // dm er panel
@@ -2588,15 +2588,22 @@ app.put('/api/admin/users/:id/role', authenticateAdmin, async (req, res) => {
         const result = await pool.query('update users set is_admin = not is_admin where user_id = $1 returning is_admin, email', [id]);
         const newState = result.rows[0].is_admin;
 
-        await logAdminActivity(req.user.userId, newState ? 'MAKE_ADMIN' : 'REVOKE_ADMIN', 'users', id, `Changed admin status to ${newState} for ${result.rows[0].email}`);
-
-        // user notify
+        // NEW: Refactored to use procedure for multi-step workflow (Update + Log + Notify)
         const adminRes = await pool.query('select username from users where user_id = $1', [req.user.userId]);
         const adminName = adminRes.rows[0].username;
-        const message = newState
+
+        const logMsg = `Changed admin status to ${newState} for ${result.rows[0].email}`;
+        const notifMsg = newState
             ? `Administrator ${adminName} has promoted you to a role with Administrator privileges. Welcome to the team!`
             : `Your Administrator privileges have been revoked by ${adminName}. If you have questions, please contact the SuperAdmin.`;
-        await createNotification(id, req.user.userId, 'SYSTEM', message);
+
+        await pool.query('CALL sp_update_user_privileges($1, $2, $3, $4, $5)', [
+            req.user.userId,
+            id,
+            newState,
+            logMsg,
+            notifMsg
+        ]);
 
         res.json({ success: true, is_admin: newState });
     } catch (err) {
@@ -2636,19 +2643,26 @@ app.put('/api/admin/users/:id/ban', authenticateAdmin, async (req, res) => {
             detailMsg = `Banned user ${targetUser.email} for: ${pDuration}. Reason: ${reason || 'Not specified'}`;
         }
 
-        await pool.query('update users set banned_until = $1 where user_id = $2', [banUntil, id]);
-        await logAdminActivity(req.user.userId, action, 'users', id, detailMsg);
-
-        // Notify user
+        // NEW: Refactored to use procedure for atomic multi-step workflow (Update + Log + Notify)
         const adminRes = await pool.query('select username from users where user_id = $1', [req.user.userId]);
         const adminName = adminRes.rows[0].username;
 
+        let notifMsg = '';
         if (!currentlyBanned) {
             const reasonMsg = reason ? ` Reason: ${reason}` : ' Policy violation.';
-            await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been banned by ${adminName}.${reasonMsg}`);
+            notifMsg = `Your account has been banned by ${adminName}.${reasonMsg}`;
         } else {
-            await createNotification(id, req.user.userId, 'SYSTEM', `Your account has been unbanned by ${adminName}. Welcome back!`);
+            notifMsg = `Your account has been unbanned by ${adminName}. Welcome back!`;
         }
+
+        await pool.query('CALL sp_handle_user_ban($1, $2, $3, $4, $5, $6)', [
+            req.user.userId,
+            id,
+            banUntil,
+            action,
+            detailMsg,
+            notifMsg
+        ]);
 
         res.json({ success: true, banned_until: banUntil });
     } catch (err) {
@@ -2796,6 +2810,25 @@ app.get('/api/admin/reports', authenticateAdmin, async (req, res) => {
             order by r.created_at desc
         `);
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// NEW: Report Resolution Endpoint using sp_resolve_report Procedure
+app.put('/api/admin/reports/:id/resolve', authenticateAdmin, async (req, res) => {
+    const { id } = req.params;
+    const { status, note } = req.body; // status: 'Resolved', 'Dismissed'
+
+    try {
+        // Multi-step: Update report + Log action + Notify reporter
+        await pool.query('CALL sp_resolve_report($1, $2, $3, $4)', [
+            id,
+            req.user.userId,
+            status || 'Resolved',
+            note || 'No additional notes.'
+        ]);
+        res.json({ success: true, message: 'Report resolved via procedure.' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

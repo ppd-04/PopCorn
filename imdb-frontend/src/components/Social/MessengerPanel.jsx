@@ -9,7 +9,7 @@ import './MessengerUpgraded.css';
 const API_BASE = 'http://localhost:5000/api';
 
 function MessengerPanel({ user, isOpen, onClose }) {
-    const [tab, setTab] = useState('all'); // 'all' or 'friends'
+    const [tab, setTab] = useState('all'); 
     const [friends, setFriends] = useState([]);
     const [conversations, setConversations] = useState([]);
     const [searchResults, setSearchResults] = useState([]);
@@ -45,7 +45,6 @@ function MessengerPanel({ user, isOpen, onClose }) {
         fetchAllData();
     }, [fetchAllData]);
 
-    // Search Logic
     useEffect(() => {
         if (!searchQuery.trim()) {
             setSearchResults([]);
@@ -63,7 +62,6 @@ function MessengerPanel({ user, isOpen, onClose }) {
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    // Socket Setup
     useEffect(() => {
         if (!isOpen || !user) return;
         
@@ -71,7 +69,6 @@ function MessengerPanel({ user, isOpen, onClose }) {
         socketRef.current.emit('join_user', user.userId || user.id);
 
         socketRef.current.on('receive_dm', (msg) => {
-            // Update active chat if open
             setActiveChat(prevActive => {
                 const currentId = user.userId || user.id;
                 const partnerId = prevActive?.user_id || prevActive?.partner_id;
@@ -82,7 +79,6 @@ function MessengerPanel({ user, isOpen, onClose }) {
 
                 if (isRelevant) {
                     setMessages(prev => [...prev, msg]);
-                    // Auto-mark as read if active
                     if (partnerId) {
                         const token = localStorage.getItem('token');
                         fetch(`${API_BASE}/chat/read/${partnerId}`, { 
@@ -93,7 +89,6 @@ function MessengerPanel({ user, isOpen, onClose }) {
                 }
                 return prevActive;
             });
-            // Refresh conversation list for everybody to get the 'most recent' order
             fetchAllData();
         });
 
@@ -114,13 +109,11 @@ function MessengerPanel({ user, isOpen, onClose }) {
             const token = localStorage.getItem('token');
             const headers = { 'Authorization': `Bearer ${token}` };
             
-            // Mark as read first
             await fetch(`${API_BASE}/chat/read/${partnerId}`, { method: 'POST', headers });
             
             const res = await fetch(`${API_BASE}/messages/${partnerId}`, { headers });
             if (res.ok) setMessages(await res.json());
             
-            // Refresh conversation list to clear unread bubble locally
             fetchAllData();
         } catch (err) {
             console.error(err);
