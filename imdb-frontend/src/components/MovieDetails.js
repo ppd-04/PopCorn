@@ -391,7 +391,7 @@ const MovieDetails = ({ user }) => {
             <h2 className="md-section-title">🎭 Cast & Crew</h2>
             <div className="cast-scroller">
               {cast.map(person => (
-                <Link to={`/user/${person.id}`} key={person.id} className="cast-card">
+                <Link to={`/person/${person.id}`} key={person.id} className="cast-card">
                   <img
                     src={person.profile_path ? `https://image.tmdb.org/t/p/w200${person.profile_path}` : 'https://via.placeholder.com/200x300?text=No+Photo'}
                     alt={person.name}
