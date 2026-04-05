@@ -35,7 +35,7 @@ const TrailerRow = () => {
             return null;
           });
           const fetched = (await Promise.all(trailerPromises)).filter(Boolean);
-          setTrailers(fetched.slice(0, 10)); // exactly 10 movies guaranteed
+          setTrailers(fetched.slice(0, 10));
         }
       } catch (err) {
         console.error(err);

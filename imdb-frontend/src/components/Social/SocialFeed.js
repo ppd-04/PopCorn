@@ -701,10 +701,10 @@ function CreateDiscussionModal({ user, onClose, onCreated, navigate }) {
                 )}
 
                 <label style={{ display: 'block', margin: '15px 0 5px', fontSize: '13px', opacity: 0.7 }}>Access Level</label>
-                <select className="create-post-textarea" style={{ height: '44px', cursor: 'pointer' }} value={access} onChange={e => setAccess(e.target.value)}>
-                    <option value="public">🌍 Public (open to everyone)</option>
-                    <option value="friends">🤝 Friends Only</option>
-                    <option value="invite">🔒 Invite Only</option>
+                <select className="create-post-textarea" style={{ height: '44px', cursor: 'pointer', color: 'black' }} value={access} onChange={e => setAccess(e.target.value)}>
+                    <option value="public" style={{ color: 'black' }}>🌍 Public (open to everyone)</option>
+                    <option value="friends" style={{ color: 'black' }}>🤝 Friends Only</option>
+                    <option value="invite" style={{ color: 'black' }}>🔒 Invite Only</option>
                 </select>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }}>

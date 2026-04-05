@@ -130,7 +130,7 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
             contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
         }
 
-        const mdl = model || 'gemma-3-4b-it';
+        const mdl = model || 'gemini-2.5-flash';
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -627,7 +627,7 @@ STRICT RULES:
 FORMAT: #AI_REC: select id, title, poster_path, backdrop_path, vote_average from movies where title ilike '%MOVIE%' limit 1 | Personalized Immersive Note`;
 
             //const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { //eta pro sir er jonno special
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

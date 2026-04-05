@@ -9,7 +9,6 @@ create table if not exists movie_genres (
     primary key (movie_id, genre_id)
 );
 
--- common genre insert
 insert into genres (id, name) values 
 (28, 'action'), (12, 'adventure'), (16, 'animation'), (35, 'comedy'), 
 (80, 'crime'), (99, 'documentary'), (18, 'drama'), (10751, 'family'), 
@@ -18,7 +17,7 @@ insert into genres (id, name) values
 (10770, 'tv movie'), (53, 'thriller'), (10752, 'war'), (37, 'western')
 on conflict (id) do nothing;
 
--- test movie insert
+-- test 
 insert into movie_genres (movie_id, genre_id) values 
 (1954, 28), (1954, 35), (1954, 80)
 on conflict (movie_id, genre_id) do nothing;
@@ -28,14 +27,14 @@ create materialized view trending_movies_view as
 select 
     m.id, 
     m.title, 
-    m.poster_path, 
-    m.backdrop_path, 
+    m.chobi, 
+    m.background, 
     m.overview,
-    m.vote_average,
+    m.avgrate,
     m.release_date,
-    (m.vote_average * log(greatest(m.vote_count, 1))) as trend_score
+    (m.avgrate * log(greatest(m.vote_count, 1))) as trend_score
 from movies m
-where m.backdrop_path is not null and m.overview is not null
+where m.background is not null and m.overview is not null
 order by trend_score desc nulls last
 limit 500;
 
@@ -52,28 +51,31 @@ create or replace function get_collaborative_recommendations(target_user_id inte
 returns table (
     id bigint,
     title text,
-    poster_path text,
-    backdrop_path text,
-    vote_average numeric
+    chobi text,
+    background text,
+    avgrate numeric
 ) as $$
 declare
-    rec_count integer;
+    koita integer;
 begin
     create temp table if not exists temp_collab_recs (
         id bigint,
         title text,
-        poster_path text,
-        backdrop_path text,
-        vote_average numeric
+        chobi
+ text,
+        background text,
+        avgrate numeric
     ) on commit drop;
 
     truncate temp_collab_recs;
 
     if target_user_id is not null and target_user_id > 0 then
         insert into temp_collab_recs
-        select sub.id, sub.title, sub.poster_path, sub.backdrop_path, sub.vote_average
+        select sub.id, sub.title, sub.chobi
+, sub.background, sub.avgrate
         from (
-            select distinct m.id, m.title, m.poster_path, m.backdrop_path, m.vote_average
+            select distinct m.id, m.title, m.chobi
+    , m.background, m.avgrate
             from movie_ratings mr2
             join movies m on m.id = mr2.movie_id
             where mr2.user_id in (
@@ -93,17 +95,18 @@ begin
         limit 10;
     end if;
 
-    select count(*) into rec_count from temp_collab_recs;
+    select count(*) into koita from temp_collab_recs;
 
-    if rec_count < 10 then
+    if koita < 10 then
         insert into temp_collab_recs
-        select m.id, m.title, m.poster_path, m.backdrop_path, m.vote_average
+        select m.id, m.title, m.chobi
+, m.background, m.avgrate
         from movies m
         where m.id not in (select cr.id from temp_collab_recs cr)
         and (target_user_id is null or m.id not in (select movie_id from user_watched where user_id = target_user_id))
-        and m.vote_average >= 7.5 and m.vote_count > 1000
+        and m.avgrate >= 7.5 and m.vote_count > 1000
         order by random()
-        limit (10 - rec_count);
+        limit (10 - koita);
     end if;
 
     return query select * from temp_collab_recs;
@@ -116,28 +119,31 @@ create or replace function get_genre_recommendations(target_user_id integer)
 returns table (
     id bigint,
     title text,
-    poster_path text,
-    backdrop_path text,
-    vote_average numeric
+    chobi text,
+    background text,
+    avgrate numeric
 ) as $$
 declare
-    rec_count integer;
+    koita integer;
 begin
     create temp table if not exists temp_genre_recs (
         id bigint,
         title text,
-        poster_path text,
-        backdrop_path text,
-        vote_average numeric
+        chobi
+ text,
+        background text,
+        avgrate numeric
     ) on commit drop;
     
     truncate temp_genre_recs;
 
     if target_user_id is not null and target_user_id > 0 then
         insert into temp_genre_recs
-        select sub.id, sub.title, sub.poster_path, sub.backdrop_path, sub.vote_average
+        select sub.id, sub.title, sub.chobi
+, sub.background, sub.avgrate
         from (
-            select distinct m.id, m.title, m.poster_path, m.backdrop_path, m.vote_average
+            select distinct m.id, m.title, m.chobi
+    , m.background, m.avgrate
             from movies m
             join movie_genres mg on m.id = mg.movie_id
             where mg.genre_id in (
@@ -160,24 +166,25 @@ begin
                 limit 3
             )
             and m.id not in (select movie_id from user_watched where user_id = target_user_id)
-            order by m.vote_average desc nulls last
+            order by m.avgrate desc nulls last
             limit 100
         ) sub
         order by random()
         limit 10;
     end if;
 
-    select count(*) into rec_count from temp_genre_recs;
+    select count(*) into koita from temp_genre_recs;
 
-    if rec_count < 10 then
+    if koita < 10 then
         insert into temp_genre_recs
-        select m.id, m.title, m.poster_path, m.backdrop_path, m.vote_average
+        select m.id, m.title, m.chobi
+, m.background, m.avgrate
         from movies m
         where m.id not in (select gr.id from temp_genre_recs gr)
         and (target_user_id is null or m.id not in (select movie_id from user_watched where user_id = target_user_id))
-        and m.vote_average >= 8.1
+        and m.avgrate >= 8.1
         order by random()
-        limit (10 - rec_count);
+        limit (10 - koita);
     end if;
 
     return query select * from temp_genre_recs;
@@ -188,12 +195,12 @@ drop function if exists get_recommendations_by_recently_liked(integer);
 
 create or replace function get_recommendations_by_recently_liked(target_user_id integer)
 returns table (
-    anchor_title text,
+    maintitle text,
     id bigint,
     title text,
-    poster_path text,
-    backdrop_path text,
-    vote_average numeric
+    chobi text,
+    background text,
+    avgrate numeric
 ) as $$
 declare
     v_anchor_id bigint;
@@ -221,9 +228,10 @@ begin
         v_anchor_title::text,
         m.id,
         m.title::text,
-        m.poster_path::text,
-        m.backdrop_path::text,
-        m.vote_average::numeric
+        m.chobi
+::text,
+        m.background::text,
+        m.avgrate::numeric
     from movies m
     where m.id != v_anchor_id
     and m.id not in (select w.movie_id from user_watched w where w.user_id = target_user_id)
@@ -234,7 +242,7 @@ begin
         where mg1.movie_id = v_anchor_id
         and mg2.movie_id = m.id
     ) >= 3
-    order by m.vote_average desc nulls last
+    order by m.avgrate desc nulls last
     limit 15;
 end;
 $$ language plpgsql;
