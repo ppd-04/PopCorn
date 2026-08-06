@@ -3,11 +3,45 @@ const express = require('express');
 const cors = require('cors');
 
 
+// const allowedOrigins = [
+//     'http://localhost:3001',
+//     'http://localhost:3000',
+//     process.env.FRONTEND_URL  // Will add on Render later
+// ];
+
+// app.use(cors({
+//     origin: function (origin, callback) {
+//         if (!origin) return callback(null, true);
+//         if (allowedOrigins.indexOf(origin) !== -1 || !origin.includes('http')) {
+//             callback(null, true);
+//         } else {
+//             callback(null, true); 
+//         }
+//     },
+//     credentials: true
+// }));
+
+
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { Pool } = require('pg');
+const http = require('http');
+const { Server } = require('socket.io');
+
+const { Resend } = require('resend');
+const crypto = require('crypto');
+
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const allowedOrigins = [
     'http://localhost:3001',
     'http://localhost:3000',
     process.env.FRONTEND_URL  // Will add on Render later
 ];
+const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors({
     origin: function (origin, callback) {
@@ -21,23 +55,8 @@ app.use(cors({
     credentials: true
 }));
 
+app.use(express.json({ limit: '10mb' }));
 
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const { Pool } = require('pg');
-const http = require('http');
-const { Server } = require('socket.io');
-
-const { Resend } = require('resend');
-const crypto = require('crypto');
-
-const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
-
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
 // app hocche web server. pore app.something() kora hobe
 
 // cors mane cross origin resource sharing, frontend backend er moddhe connection kore
@@ -50,8 +69,8 @@ const io = new Server(server, { cors: { origin: '*' } });
 // 10 mb profile pic er size limit
 // json file read korar jonno 
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+// app.use(cors());
+// app.use(express.json({ limit: '10mb' }));
 
 // Health check for uptime monitoring
 app.get('/health', (req, res) => {
