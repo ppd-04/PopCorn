@@ -1,6 +1,27 @@
 ﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+
+
+const allowedOrigins = [
+    'http://localhost:3001',
+    'http://localhost:3000',
+    process.env.FRONTEND_URL  // Will add on Render later
+];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.indexOf(origin) !== -1 || !origin.includes('http')) {
+            callback(null, true);
+        } else {
+            callback(null, true); 
+        }
+    },
+    credentials: true
+}));
+
+
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
@@ -31,6 +52,11 @@ const io = new Server(server, { cors: { origin: '*' } });
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Health check for uptime monitoring
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date() });
+});
 
 // Database Connection, supabase er sathe coonection, ssl security r jonno
 // max pool 10 mane 10 ta db connect hote parbe
@@ -3343,5 +3369,6 @@ app.get('/api/browse/favorite-people-movies', optionalAuthenticate, async (req, 
 });
 
 server.listen(PORT, () => {
-    console.log("Server is running on http://localhost:" + PORT);
+    // console.log("Server is running on http://localhost:" + PORT);
+    console.log(`Server is running on port ${PORT}`);
 });
