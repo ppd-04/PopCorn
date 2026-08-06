@@ -35,7 +35,7 @@ const BrowsePage = ({ user }) => {
     try {
       const token = localStorage.getItem('token');
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      const res = await fetch(`http://localhost:5000/api/browse/ai?force=${force}&t=${Date.now()}`, { headers });
+      const res = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/ai?force=${force}&t=${Date.now()}`, { headers });
       if (res.ok) {
         const data = await res.json();
         const recommendations = (data.recommendations || []).map(rec => ({
@@ -61,7 +61,7 @@ const BrowsePage = ({ user }) => {
         const timestamp = Date.now();
 
         // Trendin 50 thke 15 shuffled niye then 5ta dekhai
-        const trendRes = await fetch(`http://localhost:5000/api/browse/trending?t=${timestamp}`);
+        const trendRes = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/trending?t=${timestamp}`);
         if (trendRes.ok) {
           const data = await trendRes.json();
           const shuffled = shuffleArray(data);
@@ -70,7 +70,7 @@ const BrowsePage = ({ user }) => {
         }
 
         // Collaborative shuffle 
-        const collabRes = await fetch(`http://localhost:5000/api/browse/collaborative?t=${timestamp}`, { headers });
+        const collabRes = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/collaborative?t=${timestamp}`, { headers });
         if (collabRes.ok) {
           const data = await collabRes.json();
           console.log(`[Browse] Collaborative received: ${data.length} movies.`);
@@ -78,7 +78,7 @@ const BrowsePage = ({ user }) => {
         }
 
         // For You shuffle
-        const foryouRes = await fetch(`http://localhost:5000/api/browse/foryou?t=${timestamp}`, { headers });
+        const foryouRes = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/foryou?t=${timestamp}`, { headers });
         if (foryouRes.ok) {
           const data = await foryouRes.json();
           console.log(`[Browse] ForYou received: ${data.length} movies.`);
@@ -86,7 +86,7 @@ const BrowsePage = ({ user }) => {
         }
 
         if (token) {
-          const favPeopleRes = await fetch(`http://localhost:5000/api/browse/favorite-people-movies?t=${timestamp}`, { headers });
+          const favPeopleRes = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/favorite-people-movies?t=${timestamp}`, { headers });
           if (favPeopleRes.ok) {
             const data = await favPeopleRes.json();
             console.log(`[Browse] Favorite People Movies received: ${data.length} movies.`);
@@ -95,7 +95,7 @@ const BrowsePage = ({ user }) => {
         }
 
         // Because you liked ektar basis e
-        const relatedRes = await fetch(`http://localhost:5000/api/browse/related?t=${timestamp}`, { headers });
+        const relatedRes = await fetch(`https://popcorn-s9v4.onrender.com/api/browse/related?t=${timestamp}`, { headers });
         if (relatedRes.ok) {
           const data = await relatedRes.json();
           console.log('[Browse] Related response:', data);

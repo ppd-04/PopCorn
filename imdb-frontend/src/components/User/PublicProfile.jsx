@@ -24,12 +24,12 @@ function PublicProfile({ currentUser }) {
                 const token = localStorage.getItem('token');
                 if (token) headers['Authorization'] = `Bearer ${token}`;
 
-                const profRes = await fetch(`http://localhost:5000/api/users/${id}/profile`, { headers });
+                const profRes = await fetch(`https://popcorn-s9v4.onrender.com/api/users/${id}/profile`, { headers });
                 if (profRes.ok) {
                     setProfile(await profRes.json());
                 }
 
-                const postRes = await fetch(`http://localhost:5000/api/users/${id}/posts`, { headers });
+                const postRes = await fetch(`https://popcorn-s9v4.onrender.com/api/users/${id}/posts`, { headers });
                 if (postRes.ok) {
                     setPosts(await postRes.json());
                 }
@@ -53,9 +53,9 @@ function PublicProfile({ currentUser }) {
             const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
             
             let url = '';
-            if (action === 'request') url = `http://localhost:5000/api/friends/request/${id}`;
-            else if (action === 'accept') url = `http://localhost:5000/api/friends/accept/${id}`;
-            else if (action === 'reject' || action === 'unfriend') url = `http://localhost:5000/api/friends/reject/${id}`;
+            if (action === 'request') url = `https://popcorn-s9v4.onrender.com/api/friends/request/${id}`;
+            else if (action === 'accept') url = `https://popcorn-s9v4.onrender.com/api/friends/accept/${id}`;
+            else if (action === 'reject' || action === 'unfriend') url = `https://popcorn-s9v4.onrender.com/api/friends/reject/${id}`;
 
             const res = await fetch(url, { method: 'POST', headers });
             

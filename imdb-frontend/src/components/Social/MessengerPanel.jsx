@@ -6,7 +6,7 @@ import MentionInput from './MentionInput';
 import './Social.css';
 import './MessengerUpgraded.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function MessengerPanel({ user, isOpen, onClose }) {
     const [tab, setTab] = useState('all'); 
@@ -65,7 +65,7 @@ function MessengerPanel({ user, isOpen, onClose }) {
     useEffect(() => {
         if (!isOpen || !user) return;
         
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io('https://popcorn-s9v4.onrender.com');
         socketRef.current.emit('join_user', user.userId || user.id);
 
         socketRef.current.on('receive_dm', (msg) => {

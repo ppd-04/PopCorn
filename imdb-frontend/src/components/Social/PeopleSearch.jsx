@@ -15,7 +15,7 @@ function PeopleSearch() {
         const fetchUsers = async () => {
             setLoading(true);
             try {
-                const response = await fetch(`http://localhost:5000/api/users/search?q=${encodeURIComponent(query)}`);
+                const response = await fetch(`https://popcorn-s9v4.onrender.com/api/users/search?q=${encodeURIComponent(query)}`);
                 if (response.ok) {
                     const data = await response.json();
                     setResults(data);

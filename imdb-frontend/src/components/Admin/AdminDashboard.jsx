@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './AdminDashboard.css';
 
-const API_BASE = 'http://localhost:5000/api/admin';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api/admin';
 const TMDB_KEY = 'ffb76769eee5be098b949fd3877a9d0b';
 
 function AdminDashboard({ theme }) {

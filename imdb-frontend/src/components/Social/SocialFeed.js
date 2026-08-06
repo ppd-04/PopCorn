@@ -7,7 +7,7 @@ import { supabase } from '../../supabaseClient';
 import SuggestedFriends from './SuggestedFriends';
 import './Social.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 const GENRE_COLORS = [
     { bg: 'rgba(245,197,24,0.12)', border: 'rgba(245,197,24,0.4)', text: '#f5c518' },
@@ -584,7 +584,7 @@ function CommentItem({
                         {isOwner ? (
                             <button className="comment-action-link delete" onClick={async () => {
                                 if (window.confirm('Delete this comment?')) {
-                                    await fetch(`http://localhost:5000/api/comments/${comment.comment_id}`, { method: 'DELETE', headers: authHeaders() });
+                                    await fetch(`https://popcorn-s9v4.onrender.com/api/comments/${comment.comment_id}`, { method: 'DELETE', headers: authHeaders() });
                                     onDelete(comment.comment_id);
                                 }
                             }}>Delete</button>

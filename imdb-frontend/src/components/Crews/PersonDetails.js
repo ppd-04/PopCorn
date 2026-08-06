@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import './PersonDetails.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 const authHeaders = () => {
     const token = localStorage.getItem('token');

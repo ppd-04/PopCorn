@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function authHeaders() {
     const token = localStorage.getItem('token');

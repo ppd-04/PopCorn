@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 const MentionInput = ({ value, onChange, placeholder, className, onKeyDown }) => {
   const [suggestions, setSuggestions] = useState([]);

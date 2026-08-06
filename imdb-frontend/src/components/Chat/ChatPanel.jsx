@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './ChatPanel.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function ChatMessage({ role, content, suggestedMovies }) {
   return (

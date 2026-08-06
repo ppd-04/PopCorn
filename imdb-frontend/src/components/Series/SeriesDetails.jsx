@@ -5,7 +5,7 @@ import MentionInput from '../Social/MentionInput';
 import { supabase } from '../../supabaseClient';
 import './SeriesDetails.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function timeAgo(dateStr) {
   const now = new Date();

@@ -5,7 +5,7 @@ import { renderWithMentions } from '../../utils/MentionsUtil';
 import MentionInput from './MentionInput';
 import './Social.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function DiscussionRoom({ user }) {
     const { id } = useParams();
@@ -45,7 +45,7 @@ function DiscussionRoom({ user }) {
     useEffect(() => {
         if (!user || loading || !discussion) return;
 
-        socketRef.current = io('http://localhost:5000');
+        socketRef.current = io('https://popcorn-s9v4.onrender.com');
         socketRef.current.emit('join_discussion', id);
 
         socketRef.current.on('receive_discussion_msg', (msg) => {

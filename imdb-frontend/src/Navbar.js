@@ -4,7 +4,7 @@ import './Navbar.css';
 import NotificationsDropdown from './components/Navbar/NotificationsDropdown';
 import MessengerPanel from './components/Social/MessengerPanel';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com/api';
 
 function Navbar({ user, onLogout, onLoginClick, onSearch }) {
 
@@ -102,7 +102,7 @@ function Navbar({ user, onLogout, onLoginClick, onSearch }) {
 
     // Socket for real-time updates
     const io = require('socket.io-client');
-    const socket = io('http://localhost:5000');
+    const socket = io('https://popcorn-s9v4.onrender.com');
     socketRef.current = socket;
     socket.emit('join_user', user.userId || user.id);
 

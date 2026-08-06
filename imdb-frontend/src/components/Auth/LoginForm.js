@@ -113,9 +113,9 @@ function LoginForm({ onLoginSuccess, onClose }) {
         }
       }
 
-      let endpoint = 'http://localhost:5000/api/login';
+      let endpoint = 'https://popcorn-s9v4.onrender.com/api/login';
       if (isRegister) {
-        endpoint = otpMode ? 'http://localhost:5000/api/register' : 'http://localhost:5000/api/send-otp';
+        endpoint = otpMode ? 'https://popcorn-s9v4.onrender.com/api/register' : 'https://popcorn-s9v4.onrender.com/api/send-otp';
       }
 
       const requestBody = {
@@ -182,7 +182,7 @@ function LoginForm({ onLoginSuccess, onClose }) {
   const handleResendOTP = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/send-otp', {
+      const response = await fetch('https://popcorn-s9v4.onrender.com/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

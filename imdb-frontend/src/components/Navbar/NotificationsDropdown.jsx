@@ -13,7 +13,7 @@ function NotificationsDropdown({ theme }) {
         if (!token) return;
         try {
             // Using the same base pattern as other components
-            const base = 'http://localhost:5000/api';
+            const base = 'https://popcorn-s9v4.onrender.com/api';
             const res = await fetch(`${base}/notifications`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -30,7 +30,7 @@ function NotificationsDropdown({ theme }) {
         fetchNotifications();
 
         // Real-time support via Socket.io
-        const socket = io('http://localhost:5000');
+        const socket = io('https://popcorn-s9v4.onrender.com');
         const userData = localStorage.getItem('user');
         if (userData) {
             const user = JSON.parse(userData);
@@ -63,7 +63,7 @@ function NotificationsDropdown({ theme }) {
     const markAsRead = async (id) => {
         try {
             const token = localStorage.getItem('token');
-            const base = 'http://localhost:5000/api';
+            const base = 'https://popcorn-s9v4.onrender.com/api';
             const res = await fetch(`${base}/notifications/${id}/read`, {
                 method: 'PUT',
                 headers: { 'Authorization': `Bearer ${token}` }
@@ -79,7 +79,7 @@ function NotificationsDropdown({ theme }) {
     const handleFriendAction = async (action, senderId, notifId) => {
         try {
             const token = localStorage.getItem('token');
-            const base = 'http://localhost:5000/api';
+            const base = 'https://popcorn-s9v4.onrender.com/api';
             const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
             const url = `${base}/friends/${action}/${senderId}`;
 

@@ -4,7 +4,7 @@ function Celebrities() {
     useEffect(() => {
         const fetchCelebs = async () => {
             try {
-                const response = await fetch("http://localhost:5000/api/celebrities");
+                const response = await fetch("https://popcorn-s9v4.onrender.com/api/celebrities");
                 if (response.ok) {
                     const data = await response.json();
                     console.log("ashche", data);

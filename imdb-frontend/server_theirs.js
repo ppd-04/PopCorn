@@ -11,7 +11,7 @@ const crypto = require('crypto');
 
 const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
 
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
+const FRONTEND_URL = process.env.FRONTEND_URL || 'https://popcorn-s9v4.onrender.com';
 
 const app = express();
 const server = http.createServer(app);
@@ -2326,5 +2326,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log("Server is running on http://localhost:" + PORT);
+    console.log("Server is running on https://popcorn-s9v4.onrender.com" + PORT);
 });

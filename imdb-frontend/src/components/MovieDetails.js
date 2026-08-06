@@ -6,7 +6,7 @@ import { supabase } from '../supabaseClient';
 import MovieTrailer from './MovieTrailer';
 import './MovieDetails.css';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://popcorn-s9v4.onrender.com:5000/api';
 
 
 function timeAgo(dateStr) {

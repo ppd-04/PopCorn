@@ -137,7 +137,7 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
         let data = null;
         let successModel = null;
         let lastError = null;
-        
+
         // const mdl = model || 'gemma-3-4b-it';
         const mdl = 'gemini-3.5-flash';
         console.log(`[Chat] Calling Gemini model: ${mdl}`);
@@ -2268,5 +2268,5 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-    console.log("Server is running on http://localhost:" + PORT);
+    console.log("Server is running on https://popcorn-s9v4.onrender.com:" + PORT);
 });

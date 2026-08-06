@@ -15,7 +15,7 @@ const ProtectedRoute = ({ children }) => {
 
             try {
 
-                const response = await fetch('http://localhost:5000/api/verify', {
+                const response = await fetch('https://popcorn-s9v4.onrender.com/api/verify', {
                     method: 'GET',
                     headers: { 
                         'Authorization': `Bearer ${token}` 
