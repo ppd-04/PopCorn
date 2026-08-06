@@ -5,6 +5,8 @@
   color: #fff;
   font-family: 'Outfit', sans-serif;
   overflow-y: auto;
+  position: relative;
+  z-index: 1;
 }
 
 .admin-header h1 {
@@ -91,19 +93,20 @@
   overflow-x: auto;
 }
 
-table {
+.admin-dashboard table {
   width: 100%;
   border-collapse: collapse;
   min-width: 800px;
 }
 
-th, td {
+.admin-dashboard th,
+.admin-dashboard td {
   padding: 16px;
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-th {
+.admin-dashboard th {
   color: rgba(255, 255, 255, 0.5);
   font-weight: 600;
   text-transform: uppercase;
@@ -111,11 +114,11 @@ th {
   letter-spacing: 1px;
 }
 
-tbody tr {
+.admin-dashboard tbody tr {
   transition: background 0.15s;
 }
 
-tbody tr:hover {
+.admin-dashboard tbody tr:hover {
   background: rgba(255, 255, 255, 0.02);
 }
 
@@ -366,6 +369,11 @@ tbody tr:hover {
   gap: 15px;
   border: 1px solid rgba(255, 59, 48, 0.2);
   transition: transform 0.2s;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(20px);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .report-card:hover {

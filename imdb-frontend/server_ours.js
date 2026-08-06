@@ -125,7 +125,23 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
             contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
         }
 
-        const mdl = model || 'gemma-3-4b-it';
+        const FALLBACK_MODELS = [
+            'gemini-3.5-flash',          // Primary - best quality
+            'gemini-flash-latest',        // Auto-updating alias
+            'gemini-2.5-flash',           // Older but stable
+            'gemini-2.0-flash',           // Older fallback
+            'gemini-3.5-flash-lite',      // Lighter version
+            'gemini-flash-lite-latest'    // Last resort
+        ];
+
+        let data = null;
+        let successModel = null;
+        let lastError = null;
+        
+        // const mdl = model || 'gemma-3-4b-it';
+        const mdl = 'gemini-3.5-flash';
+        console.log(`[Chat] Calling Gemini model: ${mdl}`);
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 30000);
 
@@ -148,7 +164,7 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
         try {
             text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
         } catch (_) { /* kichu na*/ }
-
+        let suggestedMovies = [];
         // --- SAFE QUERY ENFORCEMENT ---
         // NEW format: #GeminiMovies: movie1, movie2, movie3
         const movieRegex = /#GeminiMovies:\s*([\s\S]+?)(?:\r?\n|$)/i;

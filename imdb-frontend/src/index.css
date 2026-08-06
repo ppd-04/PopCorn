@@ -12,13 +12,15 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0a0a; /* Restored global dark background */
+  background: #0a0a0a;
   color: #ffffff;
+  min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
-  background: #0a0a0a;
+  background: transparent;
+  isolation: isolate;
 }
 
 code {

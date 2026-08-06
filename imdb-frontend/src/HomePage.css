@@ -27,11 +27,11 @@
 }
 
 .guideline-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(245, 197, 24, 0.15);
+  background: rgba(20, 20, 20, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   padding: 30px 24px;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: default;
   position: relative;
@@ -91,7 +91,6 @@
 
 .genre-row {
   margin-bottom: 50px;
-  animation: fadeInUp 0.6s ease forwards;
 }
 
 .genre-row-header {
@@ -200,9 +199,9 @@
 }
 
 .genre-movie-card:hover {
-  transform: translateY(-8px) scale(1.03);
-  border-color: rgba(245, 197, 24, 0.3);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+  transform: translateY(-8px) scale(1.05);
+  border-color: rgba(245, 197, 24, 0.6);
+  box-shadow: 0 0 20px rgba(245, 197, 24, 0.3), 0 12px 30px rgba(0, 0, 0, 0.6);
 }
 
 .genre-movie-poster {

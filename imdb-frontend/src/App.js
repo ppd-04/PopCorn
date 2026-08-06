@@ -23,6 +23,7 @@ import CrewsPage from './components/Crews/CrewsPage';
 import PersonDetails from './components/Crews/PersonDetails';
 import GenreRows from './components/Home/GenreRows';
 import TrailerRow from './components/Home/TrailerRow';
+// import InteractiveBackground from './components/InteractiveBackground';
 
 const HERO_BACKDROPS = [
   'https://image.tmdb.org/t/p/original/8Y43POKjjKDGI9mh89NW0Pn1Z.jpg', // Interstellar
@@ -95,6 +96,7 @@ function App() {
 
   return (
     <div className="App">
+      {/* <InteractiveBackground /> */}
       <Navbar
         user={user}
         onLogout={handleLogout}

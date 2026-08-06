@@ -7,6 +7,8 @@
   padding: 100px 30px 60px;
   max-width: 1400px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .series-header {

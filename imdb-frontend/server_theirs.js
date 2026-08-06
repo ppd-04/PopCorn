@@ -672,30 +672,76 @@ FORMAT: Return exactly 10 blocks. Each block MUST be:
 SQL QUERY MUST ONLY BE: SELECT id, title, poster_path, backdrop_path, vote_average FROM movies WHERE title ILIKE '%MOVIE_NAME%' LIMIT 1
 DO NOT try to add a genre column to this query.
 `;
+        // new change
+        // const aiController = new AbortController();
+        // const aiTimeout = setTimeout(() => aiController.abort(), 45000);
 
-        const aiController = new AbortController();
-        const aiTimeout = setTimeout(() => aiController.abort(), 45000);
+        // const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify({
+        //         contents: [
+        //             { role: 'user', parts: [{ text: `SYSTEM: ${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }
+        //         ]
+        //     }),
+        //     signal: aiController.signal
+        // });
+        // clearTimeout(aiTimeout);
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemma-3-4b-it:generateContent?key=${apiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [
-                    { role: 'user', parts: [{ text: `SYSTEM: ${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }
-                ]
-            }),
-            signal: aiController.signal
-        });
-        clearTimeout(aiTimeout);
+        // if (!response.ok) {
+        //     const errText = await response.text();
+        //     console.error(`[Browse] Gemini API failed (${response.status}):`, errText);
+        //     throw new Error(`Gemini API failed with status ${response.status}`);
+        // }
+        // const data = await response.json();
+        // const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
-        if (!response.ok) {
-            const errText = await response.text();
-            console.error(`[Browse] Gemini API failed (${response.status}):`, errText);
-            throw new Error(`Gemini API failed with status ${response.status}`);
+
+        const FALLBACK_MODELS = [
+            'gemini-3.5-flash',
+            'gemini-flash-latest',
+            'gemini-2.5-flash',
+            'gemini-2.0-flash',
+            'gemini-3.5-flash-lite'
+        ];
+
+        let data = null;
+        let successModel = null;
+
+        for (const mdl of FALLBACK_MODELS) {
+            const aiController = new AbortController();
+            const aiTimeout = setTimeout(() => aiController.abort(), 45000);
+            try {
+                console.log(`[Browse] Trying model: ${mdl}`);
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${mdl}:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [
+                            { role: 'user', parts: [{ text: `SYSTEM: ${systemPrompt}\n\nUSER TIMELINE:\n${timelineStrings.join('\n')}` }] }
+                        ]
+                    }),
+                    signal: aiController.signal
+                });
+                clearTimeout(aiTimeout);
+
+                if (response.ok) {
+                    data = await response.json();
+                    successModel = mdl;
+                    console.log(`[Browse] ✅ Success with model: ${mdl}`);
+                    break;
+                }
+                const errText = await response.text();
+                console.warn(`[Browse] ${mdl} failed (${response.status}), trying next...`);
+            } catch (fetchErr) {
+                clearTimeout(aiTimeout);
+                console.error(`[Browse] Fetch error for ${mdl}:`, fetchErr.message);
+            }
         }
-        const data = await response.json();
-        const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
+        if (!data) {
+            throw new Error('All Gemini models exhausted or unavailable');
+        }
         // haedball er moto ai er payload alada korlam
         const recMatches = aiText.split('#AI_REC:').slice(1);
         const recommendations = [];

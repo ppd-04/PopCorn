@@ -7,6 +7,8 @@
   min-height: 100vh;
   background-color: #0a0a0a;
   color: white;
+  position: relative;
+  z-index: 1;
 }
 
 .sd-container {
@@ -613,7 +615,7 @@
 .sd-episodes-title {
   font-size: 1.8rem;
   margin-bottom: 25px;
-  color: #ff9d00;
+  color: #f5c518;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -638,8 +640,8 @@
 
 .sd-episode-item:hover {
   transform: translateX(5px);
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(245, 197, 24, 0.05);
+  border-color: rgba(245, 197, 24, 0.25);
 }
 
 .sd-episode-still {

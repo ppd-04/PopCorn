@@ -18,7 +18,9 @@
 
 .App {
   min-height: 100vh;
-  background: #0a0a0a;
+  background: transparent;
+  position: relative;
+  z-index: 1;
 }
 
 /* Hero Section */
@@ -95,7 +97,7 @@
 }
 
 .btn:hover {
-  transform: translateY(-3px) scale(1.02);
+  transform: translateY(-3px) scale(1.04);
 }
 
 .btn:active {
@@ -109,7 +111,7 @@
 }
 
 .btn-primary:hover {
-  box-shadow: 0 12px 35px rgba(245, 197, 24, 0.6);
+  box-shadow: 0 0 25px rgba(245, 197, 24, 0.6), 0 12px 35px rgba(245, 197, 24, 0.4);
 }
 
 .btn-secondary {
@@ -121,7 +123,7 @@
 .btn-secondary:hover {
   background: var(--accent);
   color: #000;
-  box-shadow: 0 8px 25px rgba(245, 197, 24, 0.3);
+  box-shadow: 0 0 25px rgba(245, 197, 24, 0.5), 0 8px 25px rgba(245, 197, 24, 0.3);
 }
 
 /* Content Sections */
@@ -129,7 +131,7 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 60px 20px;
-  background: var(--bg-secondary);
+  background: transparent;
 }
 
 /* Movie Grid */
@@ -140,19 +142,19 @@
 }
 
 .movie-card {
-  background: var(--bg-card);
+  background: rgba(20, 20, 20, 0.4);
   border-radius: 15px;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
-  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--text-primary);
 }
 
 .movie-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 20px 40px var(--shadow);
-  border-color: rgba(245, 197, 24, 0.4);
+  transform: translateY(-10px) scale(1.02);
+  box-shadow: 0 0 25px rgba(245, 197, 24, 0.3), 0 20px 40px var(--shadow);
+  border-color: rgba(245, 197, 24, 0.6);
 }
 
 .movie-poster {
@@ -197,8 +199,9 @@
 
 /* Footer */
 .footer {
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border);
+  background: rgba(26, 26, 26, 0.3);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
   padding: 60px 0 20px;
   margin-top: auto;
 }
@@ -444,3 +447,49 @@
   transform: translateY(-4px) scale(1.1);
   box-shadow: 0 12px 35px rgba(245, 197, 24, 0.6);
 }
+
+/* --- Refined Entrance Animations (scoped) --- */
+.hero__content {
+  animation: fadeInUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.hero__title {
+  animation: fadeInUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.05s both;
+}
+
+.hero__subtitle {
+  animation: fadeInUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.18s both;
+}
+
+.hero__buttons {
+  animation: fadeInUp 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) 0.30s both;
+}
+
+.movie-card {
+  animation: fadeInUp 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.movie-card:nth-child(1) { animation-delay: 0.05s; }
+.movie-card:nth-child(2) { animation-delay: 0.12s; }
+.movie-card:nth-child(3) { animation-delay: 0.19s; }
+.movie-card:nth-child(4) { animation-delay: 0.26s; }
+.movie-card:nth-child(5) { animation-delay: 0.33s; }
+.movie-card:nth-child(6) { animation-delay: 0.40s; }
+.movie-card:nth-child(n+7) { animation-delay: 0.45s; }
+
+.guideline-card {
+  animation: fadeInUp 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.guideline-card:nth-child(1) { animation-delay: 0.08s; }
+.guideline-card:nth-child(2) { animation-delay: 0.18s; }
+.guideline-card:nth-child(3) { animation-delay: 0.28s; }
+.guideline-card:nth-child(4) { animation-delay: 0.38s; }
+.guideline-card:nth-child(5) { animation-delay: 0.48s; }
+.guideline-card:nth-child(n+6) { animation-delay: 0.55s; }
+
+.genre-row {
+  animation: fadeInUp 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.genre-row:nth-child(1) { animation-delay: 0.05s; }
+.genre-row:nth-child(2) { animation-delay: 0.15s; }
+.genre-row:nth-child(3) { animation-delay: 0.25s; }
+.genre-row:nth-child(n+4) { animation-delay: 0.35s; }

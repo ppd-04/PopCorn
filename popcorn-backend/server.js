@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
@@ -107,108 +107,164 @@ const authenticateAdmin = (req, res, next) => {
     });
 };
 
-// Gemini er endpoint
+// new gemini endpoint
+// Gemini AI chat endpoint with automatic fallback
 app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
     try {
+
         const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
         if (!apiKey) {
-            return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY in .env' }); //env file gemini er api key rakha ase. but prothome quotation mark deyai mara kheye gesi
+            return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY in .env' });
         }
 
-        const { messages, system, model } = req.body || {};
+
+        const { messages, system } = req.body || {};
         if (!messages || !Array.isArray(messages) || messages.length === 0) {
             return res.status(400).json({ error: 'messages array is required' });
         }
 
-        // eshob habijabi gemini style e convert kora
+
         const contents = [];
         if (system && typeof system === 'string') {
             contents.push({ role: 'user', parts: [{ text: `System instruction: ${system}` }] });
+            contents.push({ role: 'model', parts: [{ text: 'Understood. I will follow these instructions.' }] });
         }
         for (const m of messages) {
             if (!m || !m.role || !m.content) continue;
-            contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+            contents.push({ 
+                role: m.role === 'assistant' ? 'model' : 'user', 
+                parts: [{ text: m.content }] 
+            });
         }
 
-        const mdl = model || 'gemini-2.5-flash';
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 30000);
-
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${apiKey}`;
-        const resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents }),
-            signal: controller.signal
-        });
-        clearTimeout(timeout);
-
-        if (!resp.ok) {
-            const txt = await resp.text();
-            return res.status(502).json({ error: 'Gemini API error', details: txt });
+        if (contents.length === 0 || contents[0].role !== 'user') {
+            return res.status(400).json({ error: 'First message must be from user' });
         }
-        const data = await resp.json();
-        // text ta extract kora
+
+ 
+        const FALLBACK_MODELS = [
+            'gemini-3.5-flash',        
+            'gemini-flash-latest',     
+            'gemini-2.5-flash',        
+            'gemini-2.0-flash',        
+            'gemini-3.5-flash-lite',   
+            'gemini-flash-lite-latest' 
+        ];
+
+        let data = null;
+        let successModel = null;
+        let lastError = null;
+
+        for (const mdl of FALLBACK_MODELS) {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000);
+
+            try {
+                console.log(`[Chat] Trying model: ${mdl}`);
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${apiKey}`;
+                
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+
+                if (resp.ok) {
+                    data = await resp.json();
+                    successModel = mdl;
+                    console.log(`[Chat] ✅ Success with model: ${mdl}`);
+                    break; 
+                }
+
+                const errText = await resp.text();
+                lastError = { model: mdl, status: resp.status, body: errText };
+
+                if (resp.status === 429) {
+                    console.warn(`[Chat] ⏱️  Rate limited on ${mdl}, trying next...`);
+                } else if (resp.status === 404) {
+                    console.warn(`[Chat] ❌ Model ${mdl} not available, trying next...`);
+                } else {
+                    console.error(`[Chat] Error ${resp.status} on ${mdl}, trying next...`);
+                }
+            } catch (fetchErr) {
+                clearTimeout(timeout);
+                console.error(`[Chat] Fetch failed for ${mdl}:`, fetchErr.message);
+                lastError = { model: mdl, message: fetchErr.message };
+            }
+        }
+
+
+        if (!data) {
+            console.error('[Chat] ALL MODELS FAILED. Last error:', lastError);
+            return res.status(503).json({ 
+                error: 'AI is temporarily unavailable. All models are rate-limited or unreachable. Please try again in a minute.',
+                details: lastError
+            });
+        }
+
+  
         let text = '';
         try {
             text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
-        } catch (_) { /* kichu na*/ }
+        } catch (_) { /* ignore */ }
+
 
         let suggestedMovies = [];
-
-        //je gemini ta noob o vulval query kore tai jor kore query koracchi
         const movieRegex = /#GeminiMovies:\s*([\s\S]+?)(?:\r?\n|$)/i;
         const movieMatch = text.match(movieRegex);
         if (movieMatch) {
             const rawTitles = movieMatch[1].trim();
-            // cleaming up
             const movieTitles = rawTitles.split(',')
                 .map(t => t.trim().replace(/^['"`]+|['"`]+$/g, ''))
                 .filter(t => t.length > 0);
 
-            // sign shorailam
             text = text.replace(movieRegex, '').trim();
 
             if (movieTitles.length > 0) {
                 try {
-                    // gadha model er jonno query ami e likhe disi jor kore o khali naam dibe
                     const placeholders = movieTitles.map((_, index) => `$${index + 1}`).join(', ');
-                    const safeQuery = `select id, title, poster_path, vote_average from movies where title in (${placeholders})`;
+                    const safeQuery = `SELECT id, title, poster_path, vote_average FROM movies WHERE title IN (${placeholders})`;
                     const result = await pool.query(safeQuery, movieTitles);
                     suggestedMovies = result.rows;
-                    console.log(`[Chat] Enforced search for titles: ${movieTitles.join(', ')} -> Found ${suggestedMovies.length} movies.`);
+                    console.log(`[Chat] Found ${suggestedMovies.length}/${movieTitles.length} movies in DB`);
                 } catch (dbErr) {
-                    console.error('[Chat] SQL Enforcement failed:', dbErr.message);
+                    console.error('[Chat] SQL query failed:', dbErr.message);
                 }
             }
         }
 
-        // authentication check
         const uId = req.user ? (req.user.userId || req.user.id || req.user.user_id) : null;
         if (uId) {
-            console.log('[Chat] Attempting to save message for UID:', uId);
             try {
-                // user er recent message save kora eta recommendation e kaaje lage
                 const lastUserMessage = messages[messages.length - 1];
-                if (lastUserMessage && lastUserMessage.role === 'user') {
+                if (lastUserMessage?.role === 'user') {
                     await pool.query(
-                        'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
-                        [uId, 'user', lastUserMessage.content]//user hole user role e rakhe
+                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        [uId, 'user', lastUserMessage.content]
                     );
                 }
                 if (text) {
                     await pool.query(
-                        'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
-                        [uId, 'model', text]//otherwise model
+                        'INSERT INTO user_chat_messages (user_id, role, content) VALUES ($1, $2, $3)',
+                        [uId, 'model', text]
                     );
                 }
-                console.log('[Chat] Successfully saved user and model messages.');
+                console.log(`[Chat] Saved messages for UID: ${uId}`);
             } catch (saveErr) {
                 console.error('[Chat] Save error:', saveErr.message);
             }
         }
 
-        return res.json({ text, suggestedMovies, raw: data });
+  
+        return res.json({ 
+            text, 
+            suggestedMovies, 
+            modelUsed: successModel,  
+            raw: data 
+        });
+
     } catch (err) {
         if (err.name === 'AbortError') {
             return res.status(504).json({ error: 'Request to Gemini timed out' });
@@ -217,6 +273,145 @@ app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
         return res.status(500).json({ error: 'Internal server error' });
     }
 });
+
+
+
+// Gemini er endpoint
+
+
+
+
+
+
+// app.post('/api/ai/chat', optionalAuthenticate, async (req, res) => {
+//     try {
+//         const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GENAI_API_KEY;
+//         if (!apiKey) {
+//             return res.status(500).json({ error: 'Server is missing GEMINI_API_KEY in .env' }); //env file gemini er api key rakha ase. but prothome quotation mark deyai mara kheye gesi
+//         }
+
+//         const { messages, system, model } = req.body || {};
+//         if (!messages || !Array.isArray(messages) || messages.length === 0) {
+//             return res.status(400).json({ error: 'messages array is required' });
+//         }
+
+
+//         // new change
+//         const VALID_MODELS = [
+//             'gemini-3.5-flash',
+//         ];
+//         const mdl = VALID_MODELS.includes(model) ? model : 'gemini-3.5-flash';
+//         // eshob habijabi gemini style e convert kora
+//         const contents = [];
+//         if (system && typeof system === 'string') {
+//             contents.push({ role: 'user', parts: [{ text: `System instruction: ${system}` }] });
+//             contents.push({
+//                 role: 'model',
+//                 parts: [{ text: 'Understood. I will follow these instructions.' }]
+//             });
+//         }
+//         for (const m of messages) {
+//             if (!m || !m.role || !m.content) continue;
+//             contents.push({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] });
+//         }
+//         // new change
+//         // const { messages, system, model } = req.body || {};
+//         // const mdl = model || 'gemini-3.5-flash';
+//         if (contents.length === 0 || contents[0].role !== 'user') {
+//             return res.status(400).json({ 
+//                 error: 'First message must be from user' 
+//             });
+//         }
+//         // const validModels = ['gemini-3.5-flash', 'gemini-3.6-flash', 'gemini-2.5-flash'];
+//         // const mdl = validModels.includes(model) ? model : 'gemini-3.5-flash';
+//         const controller = new AbortController();
+//         const timeout = setTimeout(() => controller.abort(), 30000);
+
+//         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(mdl)}:generateContent?key=${apiKey}`;
+//         console.log(`[Chat] Calling Gemini model: ${mdl}`);
+//         const resp = await fetch(url, {
+//             method: 'POST',
+//             headers: { 'Content-Type': 'application/json' },
+//             body: JSON.stringify({ contents }),
+//             signal: controller.signal
+//         });
+//         clearTimeout(timeout);
+
+//         if (!resp.ok) {
+//             const txt = await resp.text();
+//             console.error("GOOGLE API REJECTED:", txt);
+//             return res.status(502).json({ error: 'Gemini API error', details: txt });
+//         }
+//         const data = await resp.json();
+//         // text ta extract kora
+//         let text = '';
+//         try {
+//             text = data.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
+//         } catch (_) { /* kichu na*/ }
+
+//         let suggestedMovies = [];
+
+//         //je gemini ta noob o vulval query kore tai jor kore query koracchi
+//         const movieRegex = /#GeminiMovies:\s*([\s\S]+?)(?:\r?\n|$)/i;
+//         const movieMatch = text.match(movieRegex);
+//         if (movieMatch) {
+//             const rawTitles = movieMatch[1].trim();
+//             // cleaming up
+//             const movieTitles = rawTitles.split(',')
+//                 .map(t => t.trim().replace(/^['"`]+|['"`]+$/g, ''))
+//                 .filter(t => t.length > 0);
+
+//             // sign shorailam
+//             text = text.replace(movieRegex, '').trim();
+
+//             if (movieTitles.length > 0) {
+//                 try {
+//                     // gadha model er jonno query ami e likhe disi jor kore o khali naam dibe
+//                     const placeholders = movieTitles.map((_, index) => `$${index + 1}`).join(', ');
+//                     const safeQuery = `select id, title, poster_path, vote_average from movies where title in (${placeholders})`;
+//                     const result = await pool.query(safeQuery, movieTitles);
+//                     suggestedMovies = result.rows;
+//                     console.log(`[Chat] Enforced search for titles: ${movieTitles.join(', ')} -> Found ${suggestedMovies.length} movies.`);
+//                 } catch (dbErr) {
+//                     console.error('[Chat] SQL Enforcement failed:', dbErr.message);
+//                 }
+//             }
+//         }
+
+//         // authentication check
+//         const uId = req.user ? (req.user.userId || req.user.id || req.user.user_id) : null;
+//         if (uId) {
+//             console.log('[Chat] Attempting to save message for UID:', uId);
+//             try {
+//                 // user er recent message save kora eta recommendation e kaaje lage
+//                 const lastUserMessage = messages[messages.length - 1];
+//                 if (lastUserMessage && lastUserMessage.role === 'user') {
+//                     await pool.query(
+//                         'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
+//                         [uId, 'user', lastUserMessage.content]//user hole user role e rakhe
+//                     );
+//                 }
+//                 if (text) {
+//                     await pool.query(
+//                         'insert into user_chat_messages (user_id, role, content) values ($1, $2, $3)',
+//                         [uId, 'model', text]//otherwise model
+//                     );
+//                 }
+//                 console.log('[Chat] Successfully saved user and model messages.');
+//             } catch (saveErr) {
+//                 console.error('[Chat] Save error:', saveErr.message);
+//             }
+//         }
+
+//         return res.json({ text, suggestedMovies, raw: data });
+//     } catch (err) {
+//         if (err.name === 'AbortError') {
+//             return res.status(504).json({ error: 'Request to Gemini timed out' });
+//         }
+//         console.error('AI chat proxy error:', err);
+//         return res.status(500).json({ error: 'Internal server error' });
+//     }
+// });
 
 // first route e, new user register
 
@@ -627,7 +822,7 @@ STRICT RULES:
 FORMAT: #AI_REC: select id, title, poster_path, backdrop_path, vote_average from movies where title ilike '%MOVIE%' limit 1 | Personalized Immersive Note`;
 
             //const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, { //eta pro sir er jonno special
-            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            const aiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
