@@ -36,6 +36,7 @@ const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
 const allowedOrigins = [
     'http://localhost:3001',
     'http://localhost:3000',
+    'https://popcorn.pages.dev',
     process.env.FRONTEND_URL  // Will add on Render later
 ];
 const resend = new Resend(process.env.RESEND_API_KEY || process.env.SMTP_PASS);
